@@ -141,6 +141,10 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const node=observer?.getElement(turn.assistantId);
       if(!node?.isConnected)
         throw new Error('The source response is not currently rendered. Return to the native source and retry.');
+      // One unconfirmed native action at a time. Never replace a different
+      // tab's pending lineage with a second click from this conversation.
+      const existingIntent=await branchStorage.pending();
+      if(existingIntent)throw new Error('Finish or dismiss the previous Fork before starting another.');
       // Do not persist a pending link unless native Branch has been discovered.
       observer?.pauseHistory?.();
       const native=await prepareFork(node);
