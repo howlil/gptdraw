@@ -51,6 +51,15 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
     if (!bounds.length) { scale=1;panX=80;panY=70;renderTransform();return; }
     const l=Math.min(...bounds.map(x=>x.x)),t=Math.min(...bounds.map(x=>x.y));
     const r=Math.max(...bounds.map(x=>x.x+x.w)),b=Math.max(...bounds.map(x=>x.y+x.h));
+    if(viewport.clientWidth < 600) {
+      // Narrow screens enter a readable single-card focus instead of shrinking
+      // a long conversation spine into unreadable miniature text.
+      const first=bounds[0];
+      scale=clamp((viewport.clientWidth-24)/first.w,.72,1);
+      panX=(viewport.clientWidth-(first.x+first.w/2)*scale)/2;
+      panY=(viewport.clientHeight-(first.y+Math.min(first.h,430)/2)*scale)/2;
+      renderTransform();return;
+    }
     scale=clamp(Math.min((viewport.clientWidth-80)/(r-l),(viewport.clientHeight-100)/(b-t)),.42,1.1);
     panX=(viewport.clientWidth-(l+r)*scale)/2;
     panY=(viewport.clientHeight-(t+b)*scale)/2;renderTransform();
