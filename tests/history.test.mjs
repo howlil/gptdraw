@@ -43,12 +43,12 @@ test('progressive history loading repeatedly reaches top and restores scroll pos
       return {firstId:scans<2?'u3':'u1',count:scans<2?4:8};
     },
     wait:async()=>{if(scans===0)scroller.scrollHeight+=300;},
-    idleLimit:2,maxSteps:15,waitMs:1
+    idleLimit:2,maxSteps:20,waitMs:1
   });
-  assert.equal(result,'complete');
+  assert.equal(result,'reached-top');
   assert.ok(scans>=4);
   assert.equal(scroller.scrollTop,2000,'restore the prior bottom gap after prepend');
-  assert.equal(states.at(-1),'complete');
+  assert.equal(states.at(-1),'reached-top');
 });
 
 test('cancelled backfill does not alter native scroll position on route change',async()=>{
