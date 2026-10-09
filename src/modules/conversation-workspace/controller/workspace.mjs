@@ -9,12 +9,12 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let route = routeKey(pathname());
   let messages = [], turns = [], positions = {};
   let history = {status:'idle',steps:0};
-  let branches=[],pendingBranch=null,branchError=null;
+  let branches=[],pendingBranch=null,branchError=null,bookmarks=[];
   let running = false, storeTimer = 0, generation = 0;
   let observer = null;
   let unsubscribeBranches=()=>{};
   let messageIndex = new Map(), turnIndex = new Map();
-  const notify = change => onUpdate({ route, turns, positions, history, branches, pendingBranch,
+  const notify = change => onUpdate({ route, turns, positions, history, bookmarks, branches, pendingBranch,
     branchError, relations:branchRelations(branches,conversationId(route)) }, change);
   const refresh = () => {
     turns = pairMessages(messages);
@@ -29,7 +29,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   async function loadRoute(path) {
     route = routeKey(path);
     const seq = ++generation;
-    positions = {};
+    positions = {};bookmarks=[];
     messages = [];
     turns = [];
     history={status:'idle',steps:0};branchError=null;
@@ -37,11 +37,13 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     messageIndex.clear();turnIndex.clear();
     notify({ type:'route' });
     try {
-      const [restored,existing,pending]=await Promise.all([
-        layoutStorage.read(route),branchStorage?.list?.() ?? [],branchStorage?.pending?.() ?? null
+      const [restored,existing,pending,loadedBookmarks]=await Promise.all([
+        layoutStorage.read(route),branchStorage?.list?.() ?? [],branchStorage?.pending?.() ?? null,
+        layoutStorage.readBookmarks?.(route) ?? []
       ]);
       if (seq === generation) {
-        positions=restored;branches=existing;pendingBranch=pending;notify({type:'layout'});
+        positions=restored;branches=existing;pendingBranch=pending;
+        bookmarks=loadedBookmarks;notify({type:'layout'});
       }
     } catch {
       // Native conversation reading remains usable if layout storage fails.
@@ -105,6 +107,17 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     getSource(id) { return observer?.getElement(id) || null; },
     refresh() { observer?.refresh();observer?.loadEarlier?.(); },
     pauseHistory() { observer?.pauseHistory?.(); },
+    async toggleBookmark(id) {
+      if(!stableMessageId(id) || !turns.some(t=>t.id===id))
+        throw new Error('This turn has no durable source ID for a persistent bookmark.');
+      const previous=bookmarks;
+      const next=previous.includes(id)?previous.filter(x=>x!==id):[...previous,id];
+      if(next.length>500)throw new Error('Bookmark limit reached.');
+      bookmarks=next;notify({type:'bookmark',turnId:id});
+      try {await layoutStorage.writeBookmarks(route,next);}
+      catch(error){bookmarks=previous;notify({type:'bookmark',turnId:id});throw error;}
+      return next.includes(id);
+    },
     async fork(turnId, anchor=null) {
       if(!branchStorage || !prepareFork)throw new Error('Native branching is unavailable.');
       const parentConversationId=conversationId(route);
@@ -161,7 +174,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       clearTimeout(storeTimer);
       await layoutStorage.write(route, positions);
     },
-    snapshot() { return {route,turns,positions,history,branches,pendingBranch,branchError,
+    snapshot() { return {route,turns,positions,history,bookmarks,branches,pendingBranch,branchError,
       relations:branchRelations(branches,conversationId(route))}; }
   };
 }
