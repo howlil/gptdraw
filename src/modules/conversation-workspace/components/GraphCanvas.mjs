@@ -1,8 +1,9 @@
 import { createChatCard } from './ChatCard.mjs';
+import { createStartCard } from './StartCard.mjs';
 import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint } from '../core/graph.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onEmpty }) {
+export function createGraphCanvas({ onSource, onMove, onStart }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -10,6 +11,8 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
   edgeLayer.setAttribute('class','g-edges');
   edgeLayer.setAttribute('aria-hidden','true');
   stage.append(edgeLayer); viewport.append(stage);
+  const startCard = createStartCard(onStart);
+  stage.append(startCard.element);
   const controls = document.createElement('div');
   controls.className = 'g-zoom-controls';
   const zoomLabel = document.createElement('span'); zoomLabel.className = 'g-zoom-value';
@@ -48,7 +51,7 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
     const bounds = turns.map((turn,i)=>{
       const p=point(turn,i); return { x:p.x,y:p.y,w:cards.get(turn.id)?.offsetWidth||420,h:cards.get(turn.id)?.offsetHeight||260 };
     });
-    if (!bounds.length) { scale=1;panX=80;panY=70;renderTransform();return; }
+    if (!bounds.length) bounds.push({x:130,y:140,w:startCard.element.offsetWidth||420,h:startCard.element.offsetHeight||260});
     const l=Math.min(...bounds.map(x=>x.x)),t=Math.min(...bounds.map(x=>x.y));
     const r=Math.max(...bounds.map(x=>x.x+x.w)),b=Math.max(...bounds.map(x=>x.y+x.h));
     if(viewport.clientWidth < 600) {
@@ -155,7 +158,8 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
           card.style.left=p.x+'px';card.style.top=p.y+'px';
         }
       });
-      onEmpty(turns.length===0);
+      startCard.element.hidden = turns.length !== 0;
+      if(!turns.length)startCard.setRoute(state.route);
       queueEdges();
       if(routeChanged && viewport.clientWidth){autoFit=false;requestAnimationFrame(fit);}
     },
