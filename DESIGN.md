@@ -40,6 +40,15 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Persist user-moved card positions by ChatGPT conversation route. Do not persist answer/prompt text or call layout data a conversation backup.
 - **Historic chat backfill:** after opening an existing conversation, progressively scan the *native conversation scrollport* upward to the earliest loadable turn, then downward through virtualized rows, merging all observed turn IDs without network/private APIs. Previously positioned cards retain their coordinates when an older prefix appears; older nodes extend to the left without displacing current focus. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
 
+## Branch navigation and inspection contract
+
+- Show the **entire confirmed connected branch family** (parent, sibling, descendants) with dashed native-lineage edges. Unknown branches get an explicit **Metadata only · Open to load** label, never a fabricated transcript.
+- Provide a calm 196×114 desktop / compact mobile **clickable SVG minimap** and a one-action **Branches** focus control. The minimap must not rerender message contents during pan/zoom.
+- Provide **Focus Reading** on the selected card and **Compare** on two actual loaded turns using the existing `ResponseBlock` renderer; side-by-side columns collapse to stacked panels on narrow screens. Do not invent citations or diff insights.
+- For linked conversations, show **Compare loaded answers** only when both answers have really been observed in the same browser tab. Cache at most eight last answers in volatile memory, never Chrome Storage, and disclose that reload loses comparisons.
+- **Bookmark** only stable turn IDs per native conversation; never save prompts, replies or the selected quote. The outline marks bookmarked cards.
+- Keyboard: `J`/`K` navigate, `R` read, `B` branches, `F` Fit, `/` search; Escape closes the topmost inspector before leaving gptdraw. Do not intercept typing inside native or extension inputs.
+
 ## Fork and quote semantics
 
 - **Fork message:** user-triggered native ChatGPT Branch action from the assistant's source message only when its real menu is discoverable; show genuine unavailable states.

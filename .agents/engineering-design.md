@@ -109,6 +109,16 @@ gptdraw/
 
 Test-first on real invariants. Use `npm run test` and `npm run build`; CI validates both. **CI tests do not prove actual ChatGPT DOM parity, browser injection success or performance budgets.** Those need manual/current-site Chrome checks.
 
+## Implemented branch workspace and inspection ownership
+
+- `core/branch-workspace.mjs`: deterministic connected-component tree layout of confirmed lineage (includes ancestors, siblings and descendants); tests forbid unrelated or pending nodes.
+- `core/viewport.mjs` + `components/Minimap.mjs`: pure world-to-minimap math and a lightweight click-to-pan SVG.
+- `components/InspectionPanel.mjs` + `core/compare.mjs`: focused long-form reading; side-by-side comparison only between loaded turn objects.
+- `controller/workspace.mjs`: caches the **last real observed turn** from at most eight conversations in the current tab RAM for cross-branch comparison. Route changes that use native ChatGPT SPA navigation retain this cache; a hard reload discards it. None of these snapshots are persisted. Do not extend to a browser-wide conversation scraper without another privacy decision.
+- `adapters/metadata.mjs`: per-conversation stable turn-ID bookmark list in Chrome Storage, capped at 500 IDs. No prompt/answer is saved.
+- `components/GraphCanvas.mjs` + `ChatCard.mjs`: branch family nodes, meta-only placeholders, minimap, keyboard focus, Read/Compare/Bookmark buttons and virtualized turn-card ownership.
+- `adapters/chatgpt-branch.mjs`: bounded, user-triggered native menu discovery; one pending Fork is allowed globally. The menu and new-tab behavior remain **unverified on live ChatGPT**.
+
 ## Vertical slice policy
 
 **Slice 01 implemented:** capture current chat → normalize → update projected graph on streaming DOM mutation → navigate to source → layout persists. No model login/API key.

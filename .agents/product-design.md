@@ -46,6 +46,14 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 - Historical scanning traverses native conversation up and down, merges virtualized messages into RAM and remains cancellable; success means *DOM-loadable* messages, not guaranteed account-level first message.
 - Default focus latest card at readable scale; Fit is explicit, with Find Card and searchable Outline. Rich cards follow the supplied Dialogue HTML prototype, but no fake model/fork/attachments. Do not cross to unrelated chat histories from the sidebar.
 
+## Latest implemented workspace interaction decisions
+
+- **Multi-branch family** includes verified parents/siblings/descendants without claiming the entire transcript of unloaded chats.
+- **Minimap and focus navigation** reduce traversal cost in very wide conversations.
+- **Reading** uses a full-height panel on real response blocks; **Compare** uses two real loaded cards, or two previously visited branch latest responses in the same tab. A page reload discards cross-route comparisons because previews are deliberately RAM-only.
+- **Bookmarks** are per-conversation stable turn IDs (no transcript storage); **keyboard shortcuts** cover navigation, read, branch, Fit and search.
+- Still **unverified:** native Fork on a real signed-in ChatGPT page, end-to-end SPA lifecycle, actual 60FPS under long chats, responsive live UI and exact current DOM selector parity. True automatic quote-context isolation, citations and attachments remain unsupported.
+
 ## Questions still open
 
 - Exact native ChatGPT DOM and accessibility selectors across account plans/site versions (manual inspection required).

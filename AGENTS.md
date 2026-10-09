@@ -23,6 +23,10 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 - Native Fork must discover the source message's actual **More → Branch in new chat** menu before activation; unavailable integration must give a clear error. Never assume clicking a menu means the child exists. Explicit confirmation is required for persistent cross-conversation lineage; reject unstable positional IDs, cycles and duplicate child ownership. Empty/new chats show exactly one functional Start Card. No invented attachments, model selection, citations or reasoning.
 - Canvas preserves the approved Dialogue prototype in monochrome: ~366px cards, compact numbered header, user bubble on right, structured assistant content on left, inline composer for latest card and source/continue actions with real native Fork gating. Initial camera focuses latest at readable zoom; Fit is optional. One graph card equals one user prompt and the following assistant response.
 
+- **Branch family UI:** connected lineage is computed from confirmed metadata and renders *navigable* nodes only for inactive conversations; absent answer content must never be invented. A cross-branch comparison is enabled only when both actual final/last answers were observed in this tab. Cache at most eight last answers in volatile JS memory; do not write those previews to Chrome Storage or send them to a remote endpoint.
+- **UI interactions:** preserve a lightweight clickable minimap, focused reading, loaded-turn comparison, bookmark IDs, and keyboard navigation. Avoid introducing a new graph library, model gateway or component framework for these.
+- **Native Fork hardening:** never overwrite an outstanding pending intent; bound polling for the real Branch menu. Confirm only on explicit user action and state that signed-in Chrome smoke testing is still required.
+
 ## Routing
 
 | Work | Read |

@@ -59,7 +59,7 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 - Local card-position persistence scoped to each ChatGPT conversation route. Chat text is not stored by the extension.
 - Shadow DOM isolation; **black-and-white light/dark design**, following ChatGPT's explicit theme when detected and OS preference otherwise; subtle entry/hover transitions, no animation on streaming/pan/zoom; keyboard Escape close.
 
-## Verified native branching workflow
+## Native branching workflow (requires real-site verification)
 
 1. In an existing ChatGPT conversation, choose **Fork** on an assistant card (or select text in a single answer block and choose **Fork selected quote**).
 2. If gptdraw detects that exact message's native **More actions → Branch in new chat**, it opens the native Branch action. If not, the UI shows why it cannot safely proceed; no phantom branch is created.
@@ -67,6 +67,15 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 4. **Continue** on the latest card sends through the native ChatGPT composer. **Continue as branch** on an earlier card invokes native Fork first. Quote selections are *focus references*: paste a copied quote into the child to guide its next prompt; it does not automatically strip ChatGPT's original context.
 
 For 80+ loaded turns, the canvas only mounts nearby cards (overscan) while keeping the full temporary conversation projection searchable. Large-graph performance is covered by deterministic tests, not yet real-Chrome frame measurements.
+
+## Branch workspace, minimap and reading tools
+
+- **Branch family:** confirmed lineage now displays the whole connected parent → sibling → descendant tree. ChatGPT conversations other than the active one appear as navigable **metadata-only** nodes; they are never populated with invented AI text. Use the **Branches** control to locate the tree.
+- **Minimap:** compact SVG overview with click-to-pan; viewport position follows real pan/zoom. No external graph dependency.
+- **Focused Reading:** choose **Read** on a card to inspect its full available answer at a readable width; **Esc** returns to the graph.
+- **Compare:** select **Compare** on two loaded turn cards for side-by-side reading. For two different native branches, visit both via ChatGPT's SPA navigation in the **same tab**; if both latest answers have been observed, the branch node offers **Compare loaded answers**. Only the last observed answer from up to eight visited conversations is cached **temporarily in tab memory**, never Chrome Storage or remote servers. A full page reload loses that preview.
+- **Bookmarks:** each card's bookmark icon stores **only its stable turn ID** in `chrome.storage.local`, scoped to the conversation; unsupported positional IDs are rejected. Bookmarks appear in Outline, not in any transcript export.
+- **Keyboard:** `J` / `K` previous/next card, `R` focused reading, `B` branch family, `F` Fit, `/` Find Card, `Esc` close reading or return to native ChatGPT. Shortcuts do not intercept typing in inputs.
 
 ## Current limitations
 
