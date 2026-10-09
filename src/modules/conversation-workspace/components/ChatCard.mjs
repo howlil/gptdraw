@@ -1,18 +1,8 @@
 import { control,icon } from '../../../components/ui/icons.mjs';
 import { quoteAnchor } from '../core/branch.mjs';
 
-// Dialogue-style card from the supplied spatial HTML prototype. All content
-// is generated through DOM textContent: no untrusted ChatGPT HTML injection.
-function createBlock(block) {
-  const tag=block.kind==='heading'?'h3':block.kind==='code'?'pre':
-    block.kind==='quote'?'blockquote':block.kind==='list'?'p':
-    block.kind==='divider'?'hr':block.kind==='table'?'pre':'p';
-  const element=document.createElement(tag);
-  element.className='g-answer-block g-block-'+block.kind;
-  element.textContent=block.kind==='list' && block.ordered
-    ? block.text : block.text;
-  return element;
-}
+import { createResponseBlock } from './ResponseBlock.mjs';
+
 export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,isLatest=false}) {
   const card=document.createElement('article');
   card.className='g-card';
@@ -134,7 +124,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     }finally{send.disabled=!composerInput.value.trim();}
   });
   card.append(head,body,footer,composer);
-  let blocks=[],lastAnswer='';
+  let blocks=[],lastAnswer='',lastSignature='';
   card._update=(next,idx,latest)=>{
     if(Number.isInteger(idx))label.textContent=String(idx+1).padStart(2,'0');
     origin.textContent=latest?'Latest':'';
@@ -143,18 +133,17 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     if(question.textContent!==next.prompt)question.textContent=next.prompt;
     // Reconcile one individual answer block at a time. Streaming doesn't
     // replace the card or reset user selection elsewhere in the graph.
-    if(next.answer!==lastAnswer) {
-      lastAnswer=next.answer;
-      const nextBlocks=next.answerBlocks?.length?next.answerBlocks:
-        next.answer?[{kind:'paragraph',text:next.answer}]:[];
+    const nextBlocks=next.answerBlocks?.length?next.answerBlocks:
+      next.answer?[{kind:'paragraph',text:next.answer}]:[];
+    const signature=next.answer+'|'+JSON.stringify(nextBlocks);
+    if(signature!==lastSignature) {
+      lastAnswer=next.answer;lastSignature=signature;
       for(let i=0;i<nextBlocks.length;i++){
-        const data=nextBlocks[i];const prev=blocks[i];
-        if(!prev||prev.kind!==data.kind){
-          const element=createBlock(data);
+        const data=nextBlocks[i],prev=blocks[i],key=JSON.stringify(data);
+        if(!prev||prev.key!==key){
+          const element=createResponseBlock(data);
           if(prev)prev.element.replaceWith(element);else answer.append(element);
-          blocks[i]={element,kind:data.kind,text:data.text};
-        }else if(prev.text!==data.text){
-          prev.text=data.text;prev.element.textContent=data.text;
+          blocks[i]={element,key};
         }
       }
       while(blocks.length>nextBlocks.length)blocks.pop().element.remove();
