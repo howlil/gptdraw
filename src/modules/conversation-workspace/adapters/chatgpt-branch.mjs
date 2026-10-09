@@ -3,7 +3,7 @@
 const ACTION_TEXT=/^Branch(?:\s+in|\s+to)?\s+(?:a\s+)?new\s+chat$/i;
 const MORE_HINT=/(more(?:\s+actions?|\s+options?)?|message\s+actions?)/i;
 const MENU_SELECTOR='[role="menuitem"],[data-radix-collection-item],button,[role="option"]';
-const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+const nextFrame=()=>new Promise(resolve=>setTimeout(resolve,70));
 function visible(node) {
   if (!node || !node.isConnected || node.getAttribute?.('aria-disabled')==='true')return false;
   if (node.getClientRects && !node.getClientRects().length)return false;
@@ -32,9 +32,12 @@ export async function prepareNativeBranch(doc,message,{wait=nextFrame}={}) {
   const more=findNativeMoreButton(message);
   if(!more) throw new Error('Native message actions unavailable. Open the original message in ChatGPT and use its Branch menu.');
   more.click();
-  await wait();
-  let action=findNativeBranchAction(doc);
-  if(!action){ await wait(); action=findNativeBranchAction(doc); }
+  let action=null;
+  for(let attempt=0;attempt<8;attempt++){
+    await wait();
+    action=findNativeBranchAction(doc);
+    if(action)break;
+  }
   if(!action) throw new Error('Native Branch in new chat was not found. ChatGPT may have changed its menu.');
   return {activate() {
     if(!visible(action))throw new Error('Native Branch menu closed before activation.');
