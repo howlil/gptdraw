@@ -17,14 +17,14 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 ## Observed source and product caveats
 
 - The earlier HTML prototype created fictional assistant answers, stored conversations in an in-memory JS graph and used section indexes as fork anchors. **It is a visual reference, not the runtime data source**.
-- Current extension uses rendered ChatGPT elements selected via `[data-testid^="conversation-turn-"]` and `[data-message-author-role]`, with content from known `.markdown`, `.prose` and `[data-testid="user-message"]` conventions. These selectors are **version-sensitive** and must be verified against live ChatGPT.
+- The initial `0 turns` bug was caused by recognizing conversation wrappers while **requiring a nested `data-message-author-role`**. Current adapter checks wrapper `data-turn=user|assistant` first, then nested `data-message-author-role` and `data-conversation-role`, and falls back to role-only messages. Text extraction uses known user-bubble and assistant-markdown selectors. All remain **version-sensitive** and require live ChatGPT verification.
 - DOM snapshots do not necessarily include hidden messages, model context, tools, attachments or historical branches.
 - A sequential connector between visible turns is not a confirmed ChatGPT-native fork. Fork automation should not be displayed until the real branching path and source anchoring have been verified.
 - Native ChatGPT composer remains the actual send mechanism in first slice; extension can return focus to it but does not fake sending.
 
 ## User-job graph
 
-**Now / first slice:** open conversation → click Graph → read source-derived turns and live text changes → pan/zoom/focus → open native message → return to ChatGPT. Reopen retains positions.
+**Now / corrected first slice:** open conversation → click Graph → replace only conversation main (sidebar stays visible) → read source-derived turns and live text changes → pan/zoom/focus → return to native message. **If no turns are detected, render one Start Card in the graph** with textarea and a native ChatGPT Send bridge; if native submission is unavailable, preserve the draft and hand off to ChatGPT. Reopen retains card positions.
 
 **Next:** verify native branch action and route changes → store parent/child conversation **metadata**, and show genuine fork edges with source provenance. Confirm behavior using live ChatGPT manual tests before claiming automatic branching.
 

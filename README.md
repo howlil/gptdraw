@@ -2,7 +2,7 @@
 
 **Spatial conversation interface for the ChatGPT tab you already have open.**
 
-gptdraw is a Chrome Manifest V3 extension that reads the **visible ChatGPT DOM**, projects user questions and assistant responses into connected canvas cards, and updates the affected card as ChatGPT streams new text. It changes the *interface*, not the AI model.
+gptdraw is a Chrome Manifest V3 extension that reads the **visible ChatGPT DOM**, projects user questions and assistant responses into connected canvas cards, and updates the affected card as ChatGPT streams new text. It changes the *interface*, not the AI model. **Only the chat main area is overlaid; ChatGPT's sidebar and app navigation remain intact.**
 
 **No OpenAI API key. No local gateway. No second ChatGPT login. No conversation scraping to a remote service.**
 
@@ -22,7 +22,7 @@ npm run build
 2. Click **Load unpacked**, select the generated **`gptdraw/dist/` folder** (not the repo root).
 3. Open or refresh `https://chatgpt.com/c/...`.
 4. Click **Graph** at the top-right, or the extension toolbar icon.
-5. Read the canvas; drag card headers, pan the background, zoom with Ctrl/Cmd + wheel or controls. Use each card's source action to return to its original ChatGPT message.
+5. Read the canvas while keeping ChatGPT's sidebar accessible; drag card headers, pan, zoom or return to the original ChatGPT message. **If no conversation exists, the canvas displays one Start Card** with a message input and Send. It delegates to ChatGPT's native composer; if automatic submission cannot be verified, your prepared draft remains in ChatGPT for manual sending.
 6. Select **Compose in ChatGPT** to close the canvas and focus ChatGPT's actual native composer.
 7. Return to the same chat and reopen Graph: the canvas restores your saved node positions from `chrome.storage.local`.
 
@@ -52,9 +52,9 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 
 ## What works now
 
-- Reads visible user/assistant turns from ChatGPT markup; one user question + following assistant answer per card.
+- Reads visible user/assistant turns from ChatGPT markup, including wrapper `data-turn` and message-role fallback; one user question + following assistant answer per card. Initial `0 turns` on a populated conversation was a role-parser bug addressed in this update.
 - Mirrors current response text changes through MutationObserver + requestAnimationFrame batching without rereading the full DOM on every token.
-- Sequential conversation connectors; pan/zoom, drag, focus, Fit, native source navigation and native composer handoff.
+- Main-area-only overlay that preserves ChatGPT sidebar/navigation. Sequential connectors; pan/zoom, drag, focus, Fit, native source navigation and a functioning single Start Card for empty chats.
 - Local card-position persistence scoped to each ChatGPT conversation route. Chat text is not stored by the extension.
 - Shadow DOM isolation; light/dark semantic tokens; keyboard Escape close.
 
@@ -63,9 +63,11 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 - DOM selectors are version-sensitive. **Not live-tested on the latest authenticated ChatGPT web UI in this environment.** If ChatGPT changes markup, update `adapters/chatgpt-dom.mjs` after inspecting the real page.
 - Sequential connectors are **not native branch edges**. The native Fork/Branch action, cross-conversation lineage and quote anchoring are future vertical slices.
 - First slice projects **plain text** using `textContent`, not full rich HTML, code highlighting, ChatGPT citations or internal model reasoning.
-- The native ChatGPT composer remains responsible for submitting prompts. No fake gptdraw-native prompt input is exposed.
+- The Start Card uses a user-triggered native ChatGPT composer bridge; it does **not** call AI APIs. Native DOM-driven Send can fail after ChatGPT UI changes, in which case it retains the drafted message for manual sending.
 - Some ChatGPT versions may virtualize history or render message wrappers differently, so DOM content might not include all historical turns.
 - This extension has not yet been manually smoke-tested on a real logged-in ChatGPT page. Automated checks use deterministic fixtures and production build checks.
+
+**After updating an unpacked extension:** run `npm run build`, then open `chrome://extensions` → click **Reload** on gptdraw, and refresh your ChatGPT tab. Otherwise Chrome may keep the previous content script.
 
 ## Developer commands
 

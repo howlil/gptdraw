@@ -2,7 +2,7 @@
 
 ## Product identity
 
-**ChatGPT remains the AI runtime. gptdraw is its spatial interface.** The design must remain an extension overlay over the native website, with no invented provider status or hidden conversation context.
+**ChatGPT remains the AI runtime. gptdraw is its spatial interface.** The extension canvas replaces the **visible conversation main area only** while active; the ChatGPT **sidebar, navigation and surrounding app shell remain visible and usable**. No invented provider status or hidden conversation context.
 
 User journey: **open existing ChatGPT conversation → toggle Graph → read one prompt+answer card → explore connected turns → return to the exact native source → continue composing in ChatGPT**.
 
@@ -31,7 +31,7 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 
 ## Conversation canvas
 
-- Nodes represent consecutive visible turn pairs in one ChatGPT conversation.
+- Nodes represent consecutive visible turn pairs in one ChatGPT conversation. The overlay is measured against the native `main` bounding rectangle and updates when the sidebar opens/closes. Do not position the workspace across the full viewport or cover ChatGPT navigation.
 - Edges in the first slice are a **sequential reading path**, not confirmed native branch relationships.
 - Pan the empty canvas; move nodes by dragging the **header only**. Text selection, links, buttons and internal scroll do not initiate canvas dragging.
 - Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; Fit shows detected cards; Focus centers a card for reading.
@@ -41,9 +41,9 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 
 ## Composer behavior
 
-The **native ChatGPT composer is the currently implemented input**. The extension has a real **Compose in ChatGPT** action that closes its overlay and focuses the website's native composer when discoverable.
+**When no turns are visible, show one Start Card in the canvas**, not a separate modal or `0 turns` error page. It contains a real textarea and Send action, visually consistent with Dialogue cards. The Send action uses the **native ChatGPT composer and visible Send button** through a user-initiated DOM bridge. If no Send button is usable, hand off the prepared draft to the native composer; never fabricate a model response or silently discard the text. Existing native drafts must never be overwritten.
 
-The approved future **adaptive gptdraw composer** (compact one-line pill → textarea+bottom toolbar when multiline/attachment) is a design direction, **not part of slice 01**. Only introduce it once a supported/verified bridge to the native ChatGPT composer exists; otherwise it would fake submission. No native model picker, fake microphone or mock attachments.
+For existing turns, the **Compose in ChatGPT** action returns focus to the native editor. A fully featured adaptive gptdraw composer inside each active graph card is **future work**, not silently enabled; native model picker, microphone and attachments remain owned by ChatGPT.
 
 ## Reusable components / Beautiful UI
 
@@ -53,7 +53,7 @@ Any adoption of upstream Beautiful UI source must preserve license, document dep
 
 ## Interaction/accessibility/performance acceptance
 
-- A current ChatGPT conversation opens as connected prompt+answer cards without another login or API key.
+- A current ChatGPT conversation opens as connected prompt+answer cards without another login or API key. `data-turn` on conversation wrappers must be checked before fallback role descendants; unsupported variants must be reported as undetected rather than inventing text.
 - Streaming updates update only the affected response node; no page-wide DOM scan for every token and no synthetic word-by-word animation.
 - Close/reopen restores a live native ChatGPT session and saved card positions; no message capture to extension storage.
 - Unsupported UI states are omitted, not represented as working controls.

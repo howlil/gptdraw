@@ -41,11 +41,13 @@ gptdraw/
         core/graph.mjs            # deterministic turn pairing, route, position
         adapters/
           chatgpt-dom.mjs         # DOM selector/mutation compatibility
+          native-composer.mjs     # user-initiated native editor/Send bridge
           metadata.mjs            # layout only, versioned chrome.storage keys
         controller/workspace.mjs  # conversation projection and view lifecycle
         components/
           GraphCanvas.mjs         # viewport gestures and sequential SVG edges
           ChatCard.mjs            # native DOM card (stable element per turn)
+          StartCard.mjs           # real compose/send for zero-turn workspaces
   scripts/build.mjs               # compile/bundle & copy MV3 manifest
   tests/                          # deterministic unit/fixture checks
   dist/                           # generated, not committed
@@ -55,10 +57,10 @@ gptdraw/
 
 ## Performance contract — low-level DOM, not zero-cost fiction
 
-- **DOM observer** attaches to the current conversation `main` subtree. Its MutationObserver groups changes to one `requestAnimationFrame`. For character data changes, reread only the impacted turn; rescan message wrappers only on structural changes or route switches. Watch body direct children for host remounts.
+- **DOM observer** selects the active conversation `main` (or role-based fallback) and attaches to that subtree. It recognizes wrapper `data-turn` and message-role variants. Its MutationObserver groups changes to one `requestAnimationFrame`. For character data changes, reread only the impacted turn; rescan message wrappers only on structural changes or route switches. Watch body direct children for host remounts.
 - **Projection:** index native message IDs and their owning turn. Recompute prompt/reply pairs only when message structure changes; streaming patches update the matching turn and card directly in constant lookup work. Never query the whole page on each token.
 - **Renderer:** one stable card element per user-turn ID; update `textContent` for changed assistant response. Do not `innerHTML` or rebuild all cards every event.
-- **Canvas:** CSS transform pan/zoom and lightweight SVG paths. Avoid giant rasterized planes and reparsing markdown for each streamed token. Manual positions persist at a debounced rate.
+- **Canvas:** CSS transform pan/zoom and lightweight SVG paths. The workspace is bounded to the real ChatGPT `main.getBoundingClientRect()`; measure again when sidebar/main dimensions change. Never cover native sidebar/navigation. Avoid giant rasterized planes and reparsing markdown for each streamed token. Manual positions persist at a debounced rate.
 - **CSS:** Tailwind compiled/minified at build; inject into closed Shadow DOM via local stylesheet. No runtime Tailwind, React, model SDK, GL libraries, or remote code.
 - **Beautiful UI:** component patterns and optional sourced primitives only, adapted to real data. Upstream demo/React components are **not** currently installed; do not pretend otherwise.
 
@@ -70,13 +72,13 @@ gptdraw/
 - A response text mutation changes only the affected card. No synthetic AI answers or private reasoning states.
 - Sequence links connect adjacent visible turns. Real branch ancestry/selected quote offsets require a separate verified domain contract. Do not call a sequence edge a fork.
 - When host DOM changes or the page is not a conversation, display an honest empty/fallback state; never silently switch to a fake model source.
-- Closing overlay leaves native page intact; source action scrolls to corresponding native message; native Compose returns to the actual input. Legacy `TRUSTED_CONTEXTS` access level is reset for the extension's isolated content script because only non-secret layout metadata remains.
+- Closing overlay leaves native page intact; source action scrolls to corresponding native message; native Compose returns to the actual input. A single Start Card is rendered at zero turns; its submit uses the native composer input events and real Send button when possible, or hands over an unsent draft without pretending the request succeeded. Legacy `TRUSTED_CONTEXTS` access level is reset for the extension's isolated content script because only non-secret layout metadata remains.
 
 ## Boundary tests and validation
 
 | Risk | Verification |
 | --- | --- |
-| Parser compatibility | Fixture tests with user/assistant selectors, missing reply and IDs |
+| Parser compatibility | Fixture tests for wrapper `data-turn`, nested roles, role-only variants, missing reply and IDs |
 | Streaming mutations | Observer test proving text delta patch does **not** rescan the conversation |
 | Overlay lifecycle | Close/reopen observer re-subscription; no duplicate launcher |
 | Layout | Chrome metadata storage roundtrip, invalid coordinates rejected, route separation |
