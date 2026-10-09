@@ -4,15 +4,20 @@ on:
     branches: [master]
   pull_request:
 jobs:
-  tests:
+  tests-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Unit and gateway integration tests
-        run: node --test tests/*.test.mjs
-      - name: Check module syntax
+      - run: npm install --no-audit --no-fund
+      - run: npm run test
+      - run: npm run build
+      - name: Verify extension artifacts
         run: |
-          find extension src -name '*.mjs' -o -name '*.js' | while read file; do node --check "$file"; done
+          test -s dist/manifest.json
+          test -s dist/content.js
+          test -s dist/content.css
+          test -s dist/background.js
+          ! grep -R 'OPENAI_API_KEY\|/v1/responses\|127.0.0.1:8787' dist
