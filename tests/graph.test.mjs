@@ -80,3 +80,25 @@ test('cancel stops a stream and keeps the original root for retry', async () => 
   assert.equal(saved.length, 1);
   assert.equal(saved[0].assistant.status, 'cancelled');
 });
+
+test('failed initial Chrome storage write rolls back the unsaved root', async () => {
+  let fail = true, saved = [];
+  let index = 0;
+  const storage = {
+    load: async () => saved,
+    save: async turns => {
+      if (fail) { fail = false; throw new Error('storage unavailable'); }
+      saved = structuredClone(turns);
+    }
+  };
+  const assistant = { stream: async (_id, _messages, delta) => delta('Saved response') };
+  const controller = createWorkspaceController({
+    storage, assistant, idFactory: () => 'root-' + ++index, onChange: () => {}
+  });
+  await controller.init();
+  await assert.rejects(controller.ask('Please retain the draft'), /Could not save/);
+  assert.equal(controller.snapshot().length, 0);
+  await controller.ask('Please retain the draft');
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].assistant.text, 'Saved response');
+});
