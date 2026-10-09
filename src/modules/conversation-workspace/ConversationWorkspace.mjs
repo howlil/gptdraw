@@ -11,10 +11,14 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   const subtitle=document.createElement('span');subtitle.textContent='Conversation graph';
   brandingText.append(title,subtitle);branding.append(brandingText);
   const tools=document.createElement('div');tools.className='g-toolbar';
+  const search=document.createElement('input');search.className='g-find-input';
+  search.type='search';search.placeholder='Find card';
+  search.setAttribute('aria-label','Find conversation card');
+  search.addEventListener('input',()=>canvas.search(search.value));
   const count=document.createElement('span');count.className='g-turn-count';
   const historyLabel=document.createElement('span');historyLabel.className='g-history-status';
   historyLabel.setAttribute('role','status');historyLabel.setAttribute('aria-live','polite');
-  tools.append(historyLabel,count,control('Load earlier messages / Sync','refresh',onRefresh));
+  tools.append(search,control('Show conversation outline','list',()=>canvas.toggleOutline()),historyLabel,count,control('Load earlier messages / Sync','refresh',onRefresh));
   const compose=document.createElement('button');compose.type='button';
   compose.className='g-primary-control';compose.append(icon('message',15));
   compose.append(document.createTextNode(' Back to ChatGPT'));
