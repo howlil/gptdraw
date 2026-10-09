@@ -40,7 +40,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   continueButton.append(icon('navigate',13),document.createTextNode(' Continue'));
   continueButton.addEventListener('click',()=>{
     if(card.classList.contains('g-latest'))composerInput.focus();
-    else onSource(turn.userId);
+    else runFork(null); // Earlier path must create a real native child first.
   });
   const fork=document.createElement('button');fork.type='button';
   fork.className='g-text-action';fork.textContent='Fork';
@@ -139,7 +139,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     if(Number.isInteger(idx))label.textContent=String(idx+1).padStart(2,'0');
     origin.textContent=latest?'Latest':'';
     card.classList.toggle('g-latest',!!latest);
-    continueButton.lastChild.textContent=latest?' Continue':' Open in ChatGPT';
+    continueButton.lastChild.textContent=latest?' Continue':' Continue as branch';
     if(question.textContent!==next.prompt)question.textContent=next.prompt;
     // Reconcile one individual answer block at a time. Streaming doesn't
     // replace the card or reset user selection elsewhere in the graph.
