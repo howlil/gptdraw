@@ -33,12 +33,14 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
       const status=state.history?.status || 'idle';
       const labels={
         loading:'Loading conversation history…',
-        complete:'Reached currently available older messages',
+        'reached-top':'Scanned available history',
         limited:'Some earlier messages may be unavailable',
         unavailable:'Only rendered messages available',
         idle:'',cancelled:''
       };
       historyLabel.textContent=labels[status] || '';
+      if(status==='loading'&&state.history?.count>0)
+        historyLabel.textContent='Scanning history · '+Math.floor(state.history.count/2)+' turns';
       historyLabel.hidden=!historyLabel.textContent;
       if(change?.type==='history')return;
       if(change?.type!=='patch' && change?.type!=='position')
