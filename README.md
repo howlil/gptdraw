@@ -52,7 +52,7 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 
 ## What works now
 
-- Reads visible user/assistant turns from ChatGPT markup, including wrapper `data-turn` and message-role fallback; one user question + following assistant answer per card. Initial `0 turns` on a populated conversation was a role-parser bug addressed in this update.
+- Reads visible user/assistant turns from ChatGPT markup, including wrapper `data-turn`, message-role fallback, and grouped `data-turn-key` exchanges; one user question + following assistant answer per card. Initial `0 turns` on a populated conversation was a role-parser bug addressed in this update.
 - Mirrors current response text changes through MutationObserver + requestAnimationFrame batching without rereading the full DOM on every token.
 - Main-area-only overlay that preserves ChatGPT sidebar/navigation. Sequential connectors; pan/zoom, drag, focus, Fit, native source navigation and a functioning single Start Card for empty chats.
 - Local card-position persistence scoped to each ChatGPT conversation route. Chat text is not stored by the extension.
