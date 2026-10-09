@@ -33,9 +33,10 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
     element:wrapper,
     show(){wrapper.hidden=false;},
     hide(){wrapper.hidden=true;},
-    render(state){
-      count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns');
-      canvas.reconcile(state);
+    render(state, change){
+      if(change?.type!=='patch' && change?.type!=='position')
+        count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns');
+      canvas.reconcile(state,change);
     }
   };
 }
