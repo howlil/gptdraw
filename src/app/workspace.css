@@ -274,3 +274,14 @@ ol.g-block-list {list-style:decimal;}
 .g-code-header button {font-size:11px!important;}
 .g-block-code pre {margin:0;padding:10px;overflow-x:auto;max-width:100%;white-space:pre;}
 .g-block-code pre code {font:11px/18px ui-monospace,Consolas,monospace;}
+
+/* Spatial minimap: navigation only; content never leaves the current tab. */
+.g-minimap {position:absolute;left:14px;bottom:14px;z-index:3;width:196px;height:114px;
+  border:1px solid var(--g-border);border-radius:10px;background:var(--g-surface);
+  box-shadow:0 5px 15px rgba(0,0,0,.055);overflow:hidden;touch-action:none;}
+.g-minimap svg{display:block;width:100%;height:100%;cursor:crosshair;}
+.g-minimap-turn {fill:var(--g-muted);opacity:.5;rx:1;}
+.g-minimap-branch {fill:var(--g-text);opacity:.75;rx:1;}
+.g-minimap-visible{fill:none;stroke:var(--g-text);stroke-width:1;stroke-dasharray:3 2;pointer-events:none;}
+.g-current-branch{border-style:solid;border-color:var(--g-text);}
+@media(max-width:600px){.g-minimap{left:7px;bottom:8px;width:132px;height:78px;}}
