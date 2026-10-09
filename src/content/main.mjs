@@ -25,7 +25,6 @@ if(!document.getElementById(HOST_ID)){
     hide();
     requestAnimationFrame(()=>{
       element?.scrollIntoView?.({behavior:'smooth',block:'center'});
-      element?.querySelector?.('button')?.focus?.({preventScroll:true});
     });
   };
   const controller=createWorkspaceController({
