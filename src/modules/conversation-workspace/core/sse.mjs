@@ -9,7 +9,8 @@ export async function consumeSSE(stream, onEvent, signal) {
       if (signal?.aborted) throw new Error('Request cancelled.');
       const { done, value } = await reader.read();
       if (done) break;
-      pending += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+      pending += decoder.decode(value, { stream: true });
+      pending = pending.replace(/\r\n/g, '\n');
       let boundary;
       while ((boundary = pending.indexOf('\n\n')) >= 0) {
         const frame = pending.slice(0, boundary);
