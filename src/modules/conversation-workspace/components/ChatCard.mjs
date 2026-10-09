@@ -1,4 +1,4 @@
-export function createChatCard(turn, { onRetry }) {
+export function createChatCard(turn, { onRetry, onCancel }) {
   const card = document.createElement('article');
   card.className = 'chat-card';
   card.dataset.id = turn.id;
@@ -13,10 +13,11 @@ export function createChatCard(turn, { onRetry }) {
       <div class="user-row"><div class="user-bubble"></div></div>
       <div class="assistant-answer" aria-live="polite"></div>
       <div class="card-status"></div>
-      <button class="retry" type="button" hidden>↻ Retry</button>
+      <div class="card-actions"><button class="stop" type="button" hidden>Stop</button><button class="retry" type="button" hidden>Retry</button></div>
     </div>`;
   card.querySelector('.user-bubble').textContent = turn.userMessage.text;
   card.querySelector('.retry').addEventListener('click', () => onRetry(turn.id));
+  card.querySelector('.stop').addEventListener('click', () => onCancel(turn.id));
   updateChatCard(card, turn);
   return card;
 }
@@ -30,6 +31,7 @@ export function updateChatCard(card, turn) {
     cancelled: 'Generation cancelled.'
   }[turn.assistant.status] || '';
   status.classList.toggle('error', turn.assistant.status === 'failed');
-  card.querySelector('.retry').hidden = turn.assistant.status !== 'failed';
+  card.querySelector('.retry').hidden = !['failed', 'cancelled'].includes(turn.assistant.status);
+  card.querySelector('.stop').hidden = turn.assistant.status !== 'streaming';
   card.setAttribute('aria-busy', turn.assistant.status === 'streaming' ? 'true' : 'false');
 }
