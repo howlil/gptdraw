@@ -1,18 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "gptdraw — Branching AI Conversations",
-  "version": "0.1.0",
-  "description": "An extension-owned spatial AI conversation canvas, opened from ChatGPT.",
-  "permissions": ["storage"],
-  "host_permissions": ["http://127.0.0.1:8787/*"],
-  "background": { "service_worker": "extension/background.mjs", "type": "module" },
-  "action": { "default_title": "Open gptdraw canvas" },
-  "content_scripts": [
-    { "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
-      "js": ["extension/launcher.js"], "run_at": "document_idle" }
-  ],
+  "name": "gptdraw — ChatGPT Spatial Canvas",
+  "version": "0.2.0",
+  "description": "A low-latency spatial view of the conversation already open on ChatGPT.",
+  "permissions": ["storage", "activeTab"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Toggle gptdraw canvas" },
+  "content_scripts": [{
+    "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+    "js": ["content.js"], "run_at": "document_idle", "all_frames": false
+  }],
   "web_accessible_resources": [{
-    "resources": ["extension/workspace.html"],
+    "resources": ["content.css"],
     "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"]
   }]
 }

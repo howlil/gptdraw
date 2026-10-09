@@ -1,53 +1,42 @@
-// Pure conversation state; Chrome/DOM, provider and canvas are not domain dependencies.
-export const WORKSPACE_VERSION = 1;
-
-export function createRoot(prompt, id, createdAt = new Date().toISOString(), position = { x: 120, y: 130 }) {
-  const text = String(prompt).trim();
-  if (!text || text.length > 12000) throw new Error('Enter a prompt up to 12,000 characters.');
-  if (typeof id !== 'string' || !id) throw new Error('A stable turn ID is required.');
-  return {
-    id, parentId: null, sourceAnchor: null, createdAt,
-    userMessage: { id: id + ':user', text, attachmentIds: [] },
-    assistant: { id: id + ':assistant', status: 'queued', text: '', revisionId: null, blocks: [], error: null },
-    position
-  };
-}
-
-export function updateTurn(turns, id, update) {
-  if (!turns.some(turn => turn.id === id)) throw new Error('Unknown turn.');
-  return turns.map(turn => turn.id === id ? { ...turn, assistant: { ...turn.assistant, ...update } } : turn);
-}
-
-export function completeTurn(turns, id) {
-  const turn = turns.find(item => item.id === id);
-  if (!turn || !turn.assistant.text.trim()) throw new Error('Cannot complete an empty response.');
-  return updateTurn(turns, id, {
-    status: 'complete',
-    revisionId: id + ':revision:1',
-    blocks: [{ id: id + ':block:1', kind: 'text', text: turn.assistant.text }],
-    error: null
-  });
-}
-
-export function restoreTurns(value) {
-  if (!Array.isArray(value)) return [];
-  return value.filter(turn => turn && typeof turn.id === 'string'
-    && turn.parentId === null && typeof turn.userMessage?.text === 'string'
-    && typeof turn.assistant?.text === 'string'
-    && typeof turn.position?.x === 'number' && typeof turn.position?.y === 'number')
-    .map(turn => {
-      const interrupted = ['streaming', 'queued'].includes(turn.assistant.status);
-      return {
-        ...turn,
-        assistant: interrupted ? {
-          ...turn.assistant, status: 'failed',
-          error: 'Generation interrupted. Select Retry to start again.'
-        } : turn.assistant
+// A card represents ONE visible user prompt plus the following assistant reply.
+// This is a DOM projection, not an AI/context engine. No ChatGPT internals are assumed.
+export function pairMessages(messages) {
+  const turns = [];
+  let current = null;
+  for (const message of messages) {
+    if (message.role === 'user') {
+      current = {
+        id: message.id, userId: message.id, assistantId: null,
+        prompt: message.text, answer: '', anchorId: message.id,
+        pending: true
       };
-    });
+      turns.push(current);
+    } else if (message.role === 'assistant') {
+      if (current && !current.assistantId) {
+        current.assistantId = message.id;
+        current.answer = message.text;
+        current.pending = !message.text.trim();
+      } else {
+        // Orphan assistant output is not assigned a fabricated question.
+        current = null;
+      }
+    }
+  }
+  return turns;
 }
 
-export function rootContext(turn) {
-  if (turn.parentId !== null) throw new Error('This first-slice context builder handles root turns only.');
-  return [{ role: 'user', content: turn.userMessage.text }];
+export function routeKey(pathname) {
+  const match = String(pathname).match(/\/c\/([a-zA-Z0-9_-]+)/);
+  return match ? 'conversation:' + match[1] : 'route:' + String(pathname).slice(0, 120);
+}
+
+export function safePoint(value) {
+  const x = Number(value?.x), y = Number(value?.y);
+  return Number.isFinite(x) && Number.isFinite(y)
+    && Math.abs(x) < 1e6 && Math.abs(y) < 1e6 ? { x, y } : null;
+}
+
+export function layoutPoint(index) {
+  // A horizontal reading spine. Positions can be customized by dragging cards.
+  return { x: 130 + index * 476, y: 140 + (index % 2) * 34 };
 }
