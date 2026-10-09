@@ -109,3 +109,50 @@ test('workspace fork creates pending metadata, waits for explicit child confirma
   assert.equal(await branchStorage.pending(),null);
   controller.stop();
 });
+
+test('pending Fork blocks a second native action before opening another menu',async()=>{
+ let prepared=0;
+ const controller=createWorkspaceController({
+   pathname:()=>'/c/parent',
+   layoutStorage:{read:async()=>({}),write:async()=>{}},
+   branchStorage:{list:async()=>[],pending:async()=>({id:'still-pending',status:'pending'}),
+     subscribe:()=>()=>{}},
+   prepareFork:async()=>{prepared++;return{activate(){}};},
+   observe:cb=>({start(){cb.onSnapshot([
+     {id:'user:uuid-u',role:'user',text:'Question'},
+     {id:'assistant:uuid-a',role:'assistant',text:'Answer'}
+   ]);},stop(){},getElement:()=>({isConnected:true})}),
+   onUpdate:()=>{}
+ });
+ await controller.start();
+ await assert.rejects(controller.fork('user:uuid-u'),/previous Fork/);
+ assert.equal(prepared,0);
+ controller.stop();
+});
+
+test('branch compare previews originate only from visited, actual DOM-derived turns',async()=>{
+ let callback,last,storageWrites=0;
+ const controller=createWorkspaceController({
+   pathname:()=>'/c/root',
+   layoutStorage:{read:async()=>({}),readBookmarks:async()=>[],write:async()=>{storageWrites++;}},
+   observe:cb=>{callback=cb;return{
+     start(){cb.onSnapshot([
+       {id:'user:root-u',role:'user',text:'Root prompt'},
+       {id:'assistant:root-a',role:'assistant',text:'Root genuine answer'}
+     ]);},stop(){},getElement(){return null;}}},
+   onUpdate:state=>{last=state;}
+ });
+ await controller.start();
+ assert.equal(last.previews.root.answer,'Root genuine answer');
+ callback.onRoute('/c/child');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ callback.onSnapshot([
+   {id:'user:child-u',role:'user',text:'Child prompt'},
+   {id:'assistant:child-a',role:'assistant',text:'Child genuine answer'}
+ ]);
+ assert.equal(last.previews.root.answer,'Root genuine answer');
+ assert.equal(last.previews.child.answer,'Child genuine answer');
+ assert.equal(storageWrites,0,'volatile branch preview is not persisted');
+ assert.equal(last.previews.unknown,undefined);
+ controller.stop();
+});
