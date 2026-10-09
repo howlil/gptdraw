@@ -43,6 +43,7 @@ export function mountConversationWorkspace(host) {
       try { await controller.retry(id); }
       finally { busy = false; canvas.render(snapshot, false); }
     },
+    onCancel: id => controller.cancel(id),
     onMove: (id, position) => controller.move(id, position)
   });
   host.querySelector('.canvas-host').append(canvas.element);
