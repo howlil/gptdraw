@@ -83,6 +83,7 @@ if (!document.getElementById(HOST_ID)) {
       return result;
     },
     onFork:(id,anchor)=>controller.fork(id,anchor),
+    onBookmark:id=>controller.toggleBookmark(id),
     onConfirmBranch:()=>controller.confirmPending(),
     onDismissBranch:()=>controller.dismissPending(),
     onOpenConversation:id=>{
