@@ -1,3 +1,5 @@
+import { backfillHistory } from './history.mjs';
+
 // Read only rendered ChatGPT message DOM. Never reach into React state,
 // cookies, hidden endpoints or model context. Site markup varies by cohort.
 const TURN_SELECTOR = '[data-testid^="conversation-turn-"],[data-turn-id][data-turn]';
@@ -110,11 +112,30 @@ export function collectMessages(root) {
 
 // One MutationObserver per ChatGPT conversation surface. Keep a map from
 // actual DOM nodes to turn IDs to avoid scanning every node for each token.
-export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute,
+export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, onHistory,
   schedule = callback => requestAnimationFrame(callback) }) {
   let root = null, observer = null, bodyObserver = null, mounted = false, queued = false;
   let pathname = document.defaultView?.location.pathname || '/';
   let nodes = new Map(), targetIds = new WeakMap(), pending = new Set(), rescan = true;
+  let backfillAbort = null, historyStarted = false;
+  const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
+  function startBackfill() {
+    if (!mounted || historyStarted || backfillAbort || !onHistory ||
+        !/^\/c\//.test(pathname) || ![...nodes.values()].some(row => row.role === 'user')) return;
+    historyStarted = true;
+    const activeRoot = root;
+    const controller = new AbortController();backfillAbort = controller;
+    backfillHistory({document,root:activeRoot,signal:controller.signal,
+      onStatus:onHistory,
+      onScan:() => {
+        if(controller.signal.aborted || activeRoot!==root)return {count:0};
+        snapshot();
+        return {count:nodes.size,firstId:nodes.keys().next().value ?? null};
+      }
+    }).catch(error => {
+      if (!controller.signal.aborted)onHistory({status:'limited',message:error?.message || 'History load failed'});
+    }).finally(() => {if(backfillAbort === controller)backfillAbort = null;});
+  }
   const snapshot = () => {
     const rows = collectMessages(root);
     nodes = new Map(rows.map(row => [row.id,row]));
@@ -126,6 +147,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute,
       if (roleEl) targetIds.set(roleEl,row.id);
     }
     onSnapshot(rows);
+    if (!historyStarted) queueMicrotask(startBackfill);
   };
   const turnFor = node => {
     let element = node?.nodeType === 1 ? node : node?.parentElement;
@@ -141,10 +163,11 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute,
     if (!mounted) return;
     const nextPath = document.defaultView?.location.pathname || '/';
     if (nextPath !== pathname) {
+      cancelBackfill();historyStarted=false;
       pathname = nextPath; onRoute(pathname); rescan = true;
     }
     const newRoot = findChatMain(document);
-    if (newRoot !== root) { attach(newRoot); rescan = true; }
+    if (newRoot !== root) { cancelBackfill();historyStarted=false;attach(newRoot); rescan = true; }
     if (rescan) {
       rescan = false; pending.clear(); snapshot(); return;
     }
@@ -173,8 +196,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute,
         const id = turnFor(mutation.target);
         const structural = [...mutation.addedNodes,...mutation.removedNodes].some(node =>
           node.nodeType === 1 && (
-            node.matches?.(TURN_SELECTOR) || node.matches?.(ROLE_SELECTOR)
-            || node.querySelector?.(TURN_SELECTOR) || node.querySelector?.(ROLE_SELECTOR)
+            node.matches?.(TURN_SELECTOR) || node.matches?.(ROLE_SELECTOR) || node.matches?.(GROUP_SELECTOR)
+            || node.querySelector?.(TURN_SELECTOR) || node.querySelector?.(ROLE_SELECTOR) || node.querySelector?.(GROUP_SELECTOR)
           ));
         if (structural || !id) rescan = true;
         else pending.add(id);
@@ -192,22 +215,23 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute,
   function connect() {
     if (!mounted) return;
     const next = findChatMain(document);
-    if (next !== root) { attach(next); rescan = true; }
+    if (next !== root) { cancelBackfill();historyStarted=false;attach(next); rescan = true; }
     queue();
   }
   const nav = () => { rescan = true; connect(); };
   return {
     start() {
       if (mounted) return;
-      mounted = true;rescan = true;connect();
+      mounted = true;rescan = true;historyStarted=false;connect();
       document.defaultView?.addEventListener('popstate',nav);
       bodyObserver = new MutationObserver(connect);
       bodyObserver.observe(document.body,{childList:true});
     },
-    refresh() { rescan = true; connect(); },
+    refresh() { rescan = true; historyStarted=false; cancelBackfill(); connect(); },
+    loadEarlier() { historyStarted=false;cancelBackfill();startBackfill(); },
     getElement(id) { return nodes.get(id)?.element || null; },
     stop() {
-      mounted = false;observer?.disconnect();bodyObserver?.disconnect();
+      mounted = false;cancelBackfill();historyStarted=false;observer?.disconnect();bodyObserver?.disconnect();
       document.defaultView?.removeEventListener('popstate',nav);
       root = null;observer = null;bodyObserver = null;queued = false;
       nodes.clear();pending.clear();targetIds = new WeakMap();rescan = true;
