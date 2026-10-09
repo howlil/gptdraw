@@ -1,6 +1,6 @@
 # DESIGN.md — gptdraw Design Contract
 
-Status: **normative product/UI rules**. Read with [docs/PRODUCT_RESEARCH.md](docs/PRODUCT_RESEARCH.md). This contract describes the chosen direction from the design iterations; measurements and unvalidated behavior are marked as hypotheses.
+Status: **canonical UI/design-system contract**. Read with [.agents/product-design.md](.agents/product-design.md) for research and interaction decisions. Approved UI rules are binding; measurements and untested behavior remain hypotheses.
 
 ## 1. Product north star
 

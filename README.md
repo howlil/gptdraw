@@ -1,32 +1,24 @@
 # gptdraw
 
-**AI-native, spatial branching conversations.** One conversation turn (one user prompt + one assistant response) is one graph card. The chat is the primary experience; the graph preserves provenance and organizes exploration.
+**AI-native branching conversations.** One graph card = one user question and one assistant response. Chat is primary; graph organizes exploration, lineage and forks.
 
-> Status: **product/design specification only**. This repository was empty when these documents were initialized. The supplied HTML prototype is a reference, not a connected AI product or production implementation.
+**Status:** Docs/decisions only. The uploaded HTML is a prototype, not a production app. Model integration, persistence and runtime tests do not yet exist.
 
-## Read before changing anything
+## Single source of truth per concern
 
-1. [AGENTS.md](AGENTS.md) — agent routing, engineering workflow and quality gates.
-2. [DESIGN.md](DESIGN.md) — binding UI/interaction design contract.
-3. [.agents/product-design/SKILL.md](.agents/product-design/SKILL.md) — product research, interaction audits and usability acceptance criteria.
-4. [.agents/engineering-design/SKILL.md](.agents/engineering-design/SKILL.md) — architecture, boundaries, data flow and test design.
-5. [docs/PRODUCT_RESEARCH.md](docs/PRODUCT_RESEARCH.md) — decisions, evidence, prototype audit, risks and open questions.
+- [AGENTS.md](AGENTS.md) — lightweight routing and the developer's SWE workflow.
+- [DESIGN.md](DESIGN.md) — canonical visual system, card, adaptive composer and canvas behavior.
+- [.agents/product-design.md](.agents/product-design.md) — product research, approved decisions, interaction analysis and UX verification.
+- [.agents/engineering-design.md](.agents/engineering-design.md) — engineering decisions, boundaries, graph/context invariants and test strategy.
 
-## Product contract
+**.agents contains project working documentation, not skill files.** Do not create SKILL.md or duplicate research under docs/.
 
-- User message: right-aligned, softly tinted bubble, **no avatar**.
-- Assistant: left-aligned readable response, **no avatar or compulsory bubble**.
-- One card is **one question and its answer**. Branches are other cards, not extra turns inside the same card.
-- Continue creates a child with the full ancestor path. Fork creates a child anchored to a response block or selected text, while preserving explicit ancestry.
-- Composer defaults to a compact single-line pill; expands on wrapping/multiline/attachments. No fake functional controls.
-- Viewport supports pan, zoom, move, selection, collapsed overview, focused reading, search, and context lineage.
+## Approved product direction
 
-## Recommended delivery order
+Dialogue chat card, user bubble aligned right with a soft tint, AI answer left without avatars. Composer is a compact pill expanding for multiline/attachment. Continue and Fork create separate connected cards with provenance. Canvas is for overview/navigation; focus mode preserves reading comfort. Neutral calm minimal UI, real SVG icons, system fonts and 4px spacing rhythm.
 
-1. Choose runtime and persistence target, validate browser-extension constraints if applicable.
-2. Define graph/conversation schema and context assembly; test invariants.
-3. Build chat card / adaptive composer in isolation, with interactive preview and automated UI tests.
-4. Integrate canvas custom nodes and persisted graph; handle zoom vs readability.
-5. Connect a legitimate model/provider transport with streaming, error/retry, and attachment security.
+## Workflow
 
-The rules are prescriptive; the folder structure and libraries in the engineering skill are proposals until the framework and integration strategy are actually chosen.
+Inspect → map critical path and dependencies → plan small → test-first → implement → verify → review/iterate.
+
+Before bootstrapping a runtime, decide web app vs extension, AI transport and persistence. Do not scaffold a hierarchy of empty folders.
