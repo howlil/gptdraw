@@ -178,7 +178,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       edgeLayer.append(path);
     }
   };
-  function renderBranchNodes(records,route){
+  function renderBranchNodes(records,route,previews={}) {
     const tree=buildBranchWorkspace(records,route);
     const last=turns[turns.length-1];
     const base=last?point(last,turns.length-1):{x:130,y:140};
@@ -187,35 +187,40 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     const active=new Set(entries.map(n=>n.id));
     branchCurrent=entries.find(n=>n.isCurrent)?.id||null;
     branchEdges=tree.edges;
-    for(const [id,el] of branchNodes){
+    for(const [id,el] of branchNodes) {
       if(!active.has(id)){el.remove();branchNodes.delete(id);}
     }
     branchPositions=new Map();
-    for(const [index,entry] of entries.entries()){
+    for(const [index,entry] of entries.entries()) {
       const x=origin.x+entry.x,y=origin.y+entry.y;
-      branchPositions.set(entry.id,{x,y,branch:true,w:230,h:78});
-      let button=branchNodes.get(entry.id);
-      if(!button){
-        button=document.createElement('button');button.type='button';
-        button.className='g-branch-node';
-        button.addEventListener('click',()=>{
-          if(button.dataset.current==='true')focusBranches();
-          else onOpenConversation(button.dataset.conversationId);
-        });
-        branchNodes.set(entry.id,button);stage.append(button);
+      branchPositions.set(entry.id,{x,y,branch:true,w:230,h:90});
+      let node=branchNodes.get(entry.id);
+      if(!node) {
+        node=document.createElement('div');node.className='g-branch-node';
+        branchNodes.set(entry.id,node);stage.append(node);
       }
-      button.dataset.conversationId=entry.id;
-      button.dataset.current=String(entry.isCurrent);
-      button.classList.toggle('g-current-branch',entry.isCurrent);
-      button.replaceChildren();
+      node.classList.toggle('g-current-branch',entry.isCurrent);
+      node.replaceChildren();
+      const open=document.createElement('button');
+      open.type='button';open.className='g-branch-open';
       const title=document.createElement('strong');
       title.textContent=entry.isCurrent?'Current conversation':
         entry.parentId===null?'Root conversation':'Branch '+index;
       const caption=document.createElement('span');
-      caption.textContent=entry.isCurrent?'Messages loaded in this canvas':
-        'Metadata only · Open to load messages';
-      button.append(title,caption);
-      button.style.left=x+'px';button.style.top=y+'px';
+      caption.textContent=entry.isCurrent?'Loaded on this canvas':
+        previews[entry.id]?'Latest answer available for comparison':'Metadata only · Open to load';
+      open.append(title,caption);
+      open.addEventListener('click',()=>entry.isCurrent?focusBranches():onOpenConversation(entry.id));
+      node.append(open);
+      const current=previews[tree.current],other=previews[entry.id];
+      if(!entry.isCurrent && current?.answer && other?.answer) {
+        const compare=document.createElement('button');compare.type='button';
+        compare.className='g-branch-compare';
+        compare.textContent='Compare loaded answers';
+        compare.addEventListener('click',()=>inspector.openCompare(current,other));
+        node.append(compare);
+      }
+      node.style.left=x+'px';node.style.top=y+'px';
     }
     branchesButton.disabled=entries.length===0;
   }
@@ -354,7 +359,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       turns.forEach((turn,index)=>{turnById.set(turn.id,turn);turnIndexById.set(turn.id,index);});
       syncVisibleCards();
       renderOutline();
-      renderBranchNodes(state.branches,state.route);
+      renderBranchNodes(state.branches,state.route,state.previews);
       updateMinimap();
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route);
