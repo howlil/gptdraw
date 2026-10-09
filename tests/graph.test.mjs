@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pairMessages,routeKey,layoutPoint,safePoint } from '../src/modules/conversation-workspace/core/graph.mjs';
+import { pairMessages,routeKey,layoutPoint,safePoint,stabilizeLayout } from '../src/modules/conversation-workspace/core/graph.mjs';
 import { createWorkspaceController } from '../src/modules/conversation-workspace/controller/workspace.mjs';
 import { createLayoutStorage } from '../src/modules/conversation-workspace/adapters/metadata.mjs';
 
@@ -93,5 +93,38 @@ test('controller moves safely across ChatGPT route changes',async()=>{
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(snapshot.route,'conversation:second');
   assert.deepEqual(snapshot.positions,{u2:{x:50,y:60}});
+  controller.stop();
+});
+
+test('backfilled earliest turns never shift existing card coordinates',()=>{
+  const recent=[{id:'u4'},{id:'u5'}];
+  const initial=stabilizeLayout(recent);
+  assert.deepEqual(initial.get('u4'),{x:130,y:140});
+  const older=[{id:'u1'},{id:'u2'},{id:'u3'},...recent];
+  const expanded=stabilizeLayout(older,initial);
+  assert.deepEqual(expanded.get('u4'),initial.get('u4'));
+  assert.deepEqual(expanded.get('u5'),initial.get('u5'));
+  assert.equal(expanded.get('u3').x,initial.get('u4').x-476);
+  assert.equal(expanded.get('u1').x,initial.get('u4').x-3*476);
+  const stored=stabilizeLayout(older,expanded,{u4:{x:999,y:100}});
+  assert.deepEqual(stored.get('u4'),{x:999,y:100});
+  assert.deepEqual(stored.get('u1'),expanded.get('u1'));
+});
+
+test('unchanged backfill snapshots do not rebuild the workspace projection',async()=>{
+  let callbacks;let renders=0;
+  const messages=[{id:'u1',role:'user',text:'Question'},{id:'a1',role:'assistant',text:'Answer'}];
+  const controller=createWorkspaceController({
+    pathname:()=>'/c/first',
+    observe:cb=>{callbacks=cb;return{start(){cb.onSnapshot(messages);},stop(){},refresh(){},getElement(){return null;}};},
+    layoutStorage:{read:async()=>({}),write:async()=>{}},
+    onUpdate:()=>renders++
+  });
+  await controller.start();
+  const before=renders;
+  callbacks.onSnapshot(messages.map(x=>({...x})));
+  assert.equal(renders,before,'same text from another lazy-load check should not re-render');
+  callbacks.onSnapshot([...messages,{id:'u2',role:'user',text:'Older or new turn'}]);
+  assert.equal(renders,before+1);
   controller.stop();
 });
