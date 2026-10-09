@@ -1,86 +1,64 @@
-import { createRoot, updateTurn, completeTurn, rootContext } from '../core/graph.mjs';
+import { pairMessages, routeKey, safePoint } from '../core/graph.mjs';
 
-export function createWorkspaceController({ storage, assistant, onChange, idFactory = () => crypto.randomUUID() }) {
-  let turns = [];
-  let busy = false;
-  let queue = Promise.resolve();
-  const cancellationRequested = new Set();
-  let persistTimer;
-  const emit = () => onChange([...turns]);
-  const persist = () => {
-    queue = queue.catch(() => {}).then(() => storage.save(turns));
-    return queue;
-  };
-  const persistSoon = () => {
-    clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => { persist().catch(console.error); }, 300);
-  };
-  async function run(id) {
-    if (busy) throw new Error('Wait for the current generation to finish.');
-    const turn = turns.find(t => t.id === id);
-    if (!turn) throw new Error('Unknown conversation.');
-    busy = true;
-    turns = updateTurn(turns, id, { status: 'streaming', text: '', error: null, blocks: [], revisionId: null });
-    emit();
+// Single owner: native conversation is truth; this controller only projects
+// visible DOM turns and persists extension-owned layout metadata.
+export function createWorkspaceController({ observe, layoutStorage, onUpdate, pathname = () => location.pathname }) {
+  let route = routeKey(pathname());
+  let messages = [], turns = [], positions = {};
+  let running = false, storeTimer = 0, generation = 0;
+  let observer = null;
+  const notify = () => onUpdate({ route, turns, positions });
+  const refresh = () => { turns = pairMessages(messages); notify(); };
+  async function loadRoute(path) {
+    route = routeKey(path);
+    const seq = ++generation;
+    positions = {};
+    messages = [];
+    turns = [];
+    notify();
     try {
-      await persist();
-      if (cancellationRequested.has(id)) throw new Error('Request cancelled.');
-      await assistant.stream(id, rootContext(turn), text => {
-        const current = turns.find(t => t.id === id);
-        turns = updateTurn(turns, id, { text: current.assistant.text + text });
-        emit();
-        persistSoon();
-      });
-      turns = completeTurn(turns, id);
-    } catch (error) {
-      turns = updateTurn(turns, id, {
-        status: error?.message === 'Request cancelled.' ? 'cancelled' : 'failed',
-        error: error instanceof Error ? error.message : 'Unable to generate response.'
-      });
-    } finally {
-      cancellationRequested.delete(id);
-      busy = false;
-      clearTimeout(persistTimer);
-      await persist();
-      emit();
+      const restored = await layoutStorage.read(route);
+      if (seq === generation) { positions = restored; notify(); }
+    } catch {
+      // Native conversation reading remains usable if layout storage fails.
+      if (seq === generation) notify();
     }
   }
+  const callbacks = {
+    onSnapshot(items) { messages = items; refresh(); },
+    onPatch(item) {
+      const i = messages.findIndex(entry => entry.id === item.id);
+      if (i === -1) { observer?.refresh(); return; }
+      messages[i] = item;
+      refresh();
+    },
+    onRoute(path) { loadRoute(path); }
+  };
+  const save = () => {
+    clearTimeout(storeTimer);
+    storeTimer = setTimeout(() => layoutStorage.write(route, positions).catch(() => {}), 250);
+  };
   return {
-    async init() { turns = await storage.load(); emit(); },
-    snapshot() { return [...turns]; },
-    async ask(prompt) {
-      if (busy) throw new Error('Wait for the current generation to finish.');
-      const id = idFactory();
-      const index = turns.length;
-      turns = [...turns, createRoot(prompt, id, new Date().toISOString(),
-        { x: 120 + (index % 3) * 500, y: 110 + Math.floor(index / 3) * 440 })];
-      emit();
-      try {
-        await persist();
-      } catch {
-        turns = turns.filter(turn => turn.id !== id);
-        emit();
-        throw new Error('Could not save the new conversation. Check extension storage and retry.');
-      }
-      await run(id);
-      return id;
+    async start() {
+      if (running) return;
+      running = true;
+      await loadRoute(pathname());
+      observer = observe(callbacks);
+      observer.start();
     },
-    async retry(id) {
-      const turn = turns.find(t => t.id === id);
-      if (!turn || !['failed', 'cancelled'].includes(turn.assistant.status)) throw new Error('Only failed or cancelled turns can be retried.');
-      await run(id);
+    stop() { running = false; observer?.stop(); observer = null; clearTimeout(storeTimer); },
+    getSource(id) { return observer?.getElement(id) || null; },
+    refresh() { observer?.refresh(); },
+    move(id, candidate) {
+      const point = safePoint(candidate);
+      if (!point || !turns.some(turn => turn.id === id)) return;
+      positions = { ...positions, [id]: point };
+      notify(); save();
     },
-    cancel(id) {
-      if (busy && turns.some(t => t.id === id && t.assistant.status === 'streaming')) {
-        cancellationRequested.add(id);
-        assistant.cancel(id);
-      }
+    async persist() {
+      clearTimeout(storeTimer);
+      await layoutStorage.write(route, positions);
     },
-    move(id, position) {
-      turns = turns.map(turn => turn.id === id ? { ...turn, position } : turn);
-      emit(); persistSoon();
-    },
-    async flush() { clearTimeout(persistTimer); await persist(); },
-    dispose() { clearTimeout(persistTimer); }
+    snapshot() { return { route, turns, positions }; }
   };
 }

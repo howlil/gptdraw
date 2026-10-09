@@ -1,37 +1,36 @@
-export function createChatCard(turn, { onRetry, onCancel }) {
+import { control, icon } from '../../../components/ui/icons.mjs';
+
+export function createChatCard(turn, { index, onSource, onFocus }) {
   const card = document.createElement('article');
-  card.className = 'chat-card';
-  card.dataset.id = turn.id;
-  card.style.left = turn.position.x + 'px';
-  card.style.top = turn.position.y + 'px';
-  card.innerHTML = `
-    <div class="card-head" title="Drag to reposition">
-      <span class="card-dot"></span><span class="card-title">Conversation</span>
-      <span class="card-number"></span>
-    </div>
-    <div class="card-content">
-      <div class="user-row"><div class="user-bubble"></div></div>
-      <div class="assistant-answer" aria-live="polite"></div>
-      <div class="card-status"></div>
-      <div class="card-actions"><button class="stop" type="button" hidden>Stop</button><button class="retry" type="button" hidden>Retry</button></div>
-    </div>`;
-  card.querySelector('.user-bubble').textContent = turn.userMessage.text;
-  card.querySelector('.retry').addEventListener('click', () => onRetry(turn.id));
-  card.querySelector('.stop').addEventListener('click', () => onCancel(turn.id));
-  updateChatCard(card, turn);
+  card.className = 'g-card';
+  card.dataset.turnId = turn.id;
+  card.setAttribute('aria-label', 'Conversation turn ' + (index + 1));
+  const head = document.createElement('header');
+  head.className = 'g-card-head';
+  head.append(icon('message',14));
+  const label = document.createElement('span');
+  label.className = 'g-card-label'; label.textContent = 'Turn ' + (index + 1);
+  head.append(label);
+  const actions = document.createElement('span'); actions.className = 'g-card-actions';
+  actions.append(control('Read source in ChatGPT','arrow',() => onSource(turn.userId)),
+    control('Focus card','focus',() => onFocus(turn.id)));
+  head.append(actions);
+  const body = document.createElement('div'); body.className = 'g-card-body';
+  const row = document.createElement('div'); row.className = 'g-user-row';
+  const question = document.createElement('div'); question.className = 'g-user-bubble';
+  row.append(question);
+  const answer = document.createElement('div'); answer.className = 'g-answer';
+  answer.setAttribute('role','region'); answer.setAttribute('aria-label','Assistant response');
+  const placeholder = document.createElement('p'); placeholder.className = 'g-placeholder';
+  body.append(row, answer, placeholder);
+  card.append(head,body);
+  card._update = next => {
+    if (question.textContent !== next.prompt) question.textContent = next.prompt;
+    // No fake markdown/HTML and no re-creation of unchanged response nodes.
+    if (answer.textContent !== next.answer) answer.textContent = next.answer;
+    placeholder.textContent = next.pending ? 'Waiting for an assistant response in ChatGPT…' : '';
+    placeholder.hidden = !next.pending;
+  };
+  card._update(turn);
   return card;
-}
-export function updateChatCard(card, turn) {
-  const answer = card.querySelector('.assistant-answer');
-  if (answer.textContent !== turn.assistant.text) answer.textContent = turn.assistant.text;
-  const status = card.querySelector('.card-status');
-  status.textContent = {
-    queued: 'Waiting to connect…', streaming: 'Generating…',
-    complete: '', failed: turn.assistant.error || 'Request failed.',
-    cancelled: 'Generation cancelled.'
-  }[turn.assistant.status] || '';
-  status.classList.toggle('error', turn.assistant.status === 'failed');
-  card.querySelector('.retry').hidden = !['failed', 'cancelled'].includes(turn.assistant.status);
-  card.querySelector('.stop').hidden = turn.assistant.status !== 'streaming';
-  card.setAttribute('aria-busy', turn.assistant.status === 'streaming' ? 'true' : 'false');
 }

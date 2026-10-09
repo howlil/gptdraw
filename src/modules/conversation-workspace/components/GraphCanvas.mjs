@@ -1,119 +1,140 @@
-import { createChatCard, updateChatCard } from './ChatCard.mjs';
-import { createComposer } from './Composer.mjs';
+import { createChatCard } from './ChatCard.mjs';
+import { control } from '../../../components/ui/icons.mjs';
+import { layoutPoint } from '../core/graph.mjs';
 
-export function createGraphCanvas({ onAsk, onRetry, onCancel, onMove }) {
-  const container = document.createElement('div');
-  container.className = 'canvas-viewport';
-  container.innerHTML = '<div class="canvas-stage"></div><div class="canvas-controls"><button type="button" data-zoom="out" aria-label="Zoom out">−</button><span class="zoom-label">100%</span><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="fit" aria-label="Fit canvas">⌗</button></div>';
-  const stage = container.querySelector('.canvas-stage');
+export function createGraphCanvas({ onSource, onMove, onEmpty }) {
+  const viewport = document.createElement('section');
+  viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
+  const stage = document.createElement('div'); stage.className = 'g-world';
+  const edgeLayer = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  edgeLayer.setAttribute('class','g-edges');
+  edgeLayer.setAttribute('aria-hidden','true');
+  stage.append(edgeLayer); viewport.append(stage);
+  const controls = document.createElement('div');
+  controls.className = 'g-zoom-controls';
+  const zoomLabel = document.createElement('span'); zoomLabel.className = 'g-zoom-value';
+  controls.append(control('Zoom out','minus',()=>zoom(scale-.12)),zoomLabel,
+    control('Zoom in','plus',()=>zoom(scale+.12)),
+    control('Fit conversation','fit',()=>fit()));
+  viewport.append(controls);
+
+  let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
+  let autoFit = true, edgesQueued = false, previousRoute = null;
   const cards = new Map();
-  let scale = 1, tx = 0, ty = 0, gesture = null, didInit = false;
-  const draftCard = document.createElement('section');
-  draftCard.className = 'draft-card';
-  draftCard.innerHTML = '<div class="draft-header">New conversation</div><p class="draft-intro">Start a new path of thought.</p>';
-  const composer = createComposer(onAsk);
-  draftCard.append(composer.element);
-  stage.append(draftCard);
-  const apply = () => {
-    stage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    container.querySelector('.zoom-label').textContent = Math.round(scale * 100) + '%';
+  const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
+  const renderTransform = () => {
+    stage.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
+    zoomLabel.textContent = Math.round(scale*100) + '%';
+    queueEdges();
   };
-  function fit(turns = []) {
-    const bounds = turns.length
-      ? turns.map(turn => ({ x: turn.position.x, y: turn.position.y, w: 448, h: 340 }))
-      : [{ x: 180, y: 150, w: 448, h: 230 }];
-    const minX = Math.min(...bounds.map(p => p.x)), maxX = Math.max(...bounds.map(p => p.x + p.w));
-    const minY = Math.min(...bounds.map(p => p.y)), maxY = Math.max(...bounds.map(p => p.y + p.h));
-    scale = Math.max(.52, Math.min(1, (container.clientWidth - 60) / (maxX - minX),
-      (container.clientHeight - 90) / (maxY - minY)));
-    tx = (container.clientWidth - (minX + maxX) * scale) / 2;
-    ty = (container.clientHeight - (minY + maxY) * scale) / 2;
-    apply();
-  }
-  function zoom(next) {
-    const centerX = container.clientWidth / 2, centerY = container.clientHeight / 2;
-    const value = Math.max(.42, Math.min(1.4, next));
-    tx = centerX - (centerX - tx) * value / scale;
-    ty = centerY - (centerY - ty) * value / scale;
-    scale = value; apply();
-  }
-  container.querySelector('.canvas-controls').addEventListener('click', event => {
-    const action = event.target.closest('[data-zoom]')?.dataset.zoom;
-    if (action === 'out') zoom(scale - .1);
-    if (action === 'in') zoom(scale + .1);
-    if (action === 'fit') fit([...cards.values()].map(card => ({
-      position: { x: parseFloat(card.style.left), y: parseFloat(card.style.top) }
-    })));
-  });
-  container.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || event.target.closest('button,textarea,input,.canvas-controls')) return;
-    const head = event.target.closest('.card-head');
-    const card = head?.closest('.chat-card');
-    if (card) {
-      gesture = { type: 'node', id: card.dataset.id, card, x: parseFloat(card.style.left),
-        y: parseFloat(card.style.top), clientX: event.clientX, clientY: event.clientY,
-        pointerId: event.pointerId };
-    } else if (event.target === container || event.target === stage) {
-      gesture = { type: 'pan', x: tx, y: ty, clientX: event.clientX, clientY: event.clientY,
-        pointerId: event.pointerId };
+  const point = (turn,index) => positions[turn.id] || layoutPoint(index);
+  const drawEdges = () => {
+    edgesQueued = false;
+    edgeLayer.replaceChildren();
+    for (let i=1;i<turns.length;i++) {
+      const left = cards.get(turns[i-1].id), right = cards.get(turns[i].id);
+      if (!left || !right) continue;
+      const a = point(turns[i-1],i-1), b = point(turns[i],i);
+      const x1=a.x+left.offsetWidth, y1=a.y+43, x2=b.x, y2=b.y+43;
+      const c=Math.max(60,Math.abs(x2-x1)*.42);
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d','M'+x1+' '+y1+' C'+(x1+c)+' '+y1+' '+(x2-c)+' '+y2+' '+x2+' '+y2);
+      path.setAttribute('fill','none'); path.setAttribute('stroke','var(--g-edge)');
+      path.setAttribute('stroke-width','1.7'); edgeLayer.append(path);
     }
-    if (gesture) container.setPointerCapture(event.pointerId);
-  });
-  container.addEventListener('pointermove', event => {
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
-    const dx = event.clientX - gesture.clientX, dy = event.clientY - gesture.clientY;
-    if (gesture.type === 'pan') { tx = gesture.x + dx; ty = gesture.y + dy; apply(); }
-    else {
-      gesture.card.style.left = gesture.x + dx / scale + 'px';
-      gesture.card.style.top = gesture.y + dy / scale + 'px';
-    }
-  });
-  function endPointer(event) {
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
-    if (gesture.type === 'node') onMove(gesture.id, {
-      x: parseFloat(gesture.card.style.left), y: parseFloat(gesture.card.style.top)
+  };
+  const queueEdges = () => { if (!edgesQueued) { edgesQueued=true; requestAnimationFrame(drawEdges); } };
+  const fit = () => {
+    const bounds = turns.map((turn,i)=>{
+      const p=point(turn,i); return { x:p.x,y:p.y,w:cards.get(turn.id)?.offsetWidth||420,h:cards.get(turn.id)?.offsetHeight||260 };
     });
-    gesture = null;
-  }
-  container.addEventListener('pointerup', endPointer);
-  container.addEventListener('pointercancel', endPointer);
-  container.addEventListener('wheel', event => {
+    if (!bounds.length) { scale=1;panX=80;panY=70;renderTransform();return; }
+    const l=Math.min(...bounds.map(x=>x.x)),t=Math.min(...bounds.map(x=>x.y));
+    const r=Math.max(...bounds.map(x=>x.x+x.w)),b=Math.max(...bounds.map(x=>x.y+x.h));
+    scale=clamp(Math.min((viewport.clientWidth-80)/(r-l),(viewport.clientHeight-100)/(b-t)),.42,1.1);
+    panX=(viewport.clientWidth-(l+r)*scale)/2;
+    panY=(viewport.clientHeight-(t+b)*scale)/2;renderTransform();
+  };
+  const zoom = (value,cx=viewport.clientWidth/2,cy=viewport.clientHeight/2)=>{
+    const next=clamp(value,.4,1.5);
+    panX=cx-(cx-panX)*next/scale;panY=cy-(cy-panY)*next/scale;
+    scale=next;autoFit=false;renderTransform();
+  };
+  viewport.addEventListener('wheel',event=>{
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
-    zoom(scale + (event.deltaY < 0 ? .08 : -.08));
-  }, { passive: false });
-  return {
-    element: container,
-    render(turns, busy) {
-      const ids = new Set(turns.map(t => t.id));
-      for (const [id, card] of cards) if (!ids.has(id)) { card.remove(); cards.delete(id); }
-      for (const turn of turns) {
-        if (!cards.has(turn.id)) {
-          const card = createChatCard(turn, { onRetry, onCancel });
-          cards.set(turn.id, card); stage.append(card);
-        }
-        const card = cards.get(turn.id);
-        updateChatCard(card, turn);
-        if (!gesture || gesture.id !== turn.id) {
-          card.style.left = turn.position.x + 'px';
-          card.style.top = turn.position.y + 'px';
-        }
-      }
-      // The draft card is UI-only until Send creates a persisted domain turn.
-      const count = turns.length;
-      draftCard.style.left = 180 + (count % 3) * 500 + 'px';
-      draftCard.style.top = 150 + Math.floor(count / 3) * 440 + 'px';
-      composer.textarea.disabled = busy;
-      draftCard.querySelector('.send').disabled = busy || !composer.textarea.value.trim();
-      if (!didInit && container.clientWidth) { didInit = true; fit(turns); }
-    },
-    fit,
-    focusComposer() {
-      const x = parseFloat(draftCard.style.left) + 224;
-      const y = parseFloat(draftCard.style.top) + 110;
-      tx = container.clientWidth / 2 - x * scale;
-      ty = container.clientHeight / 2 - y * scale;
-      apply(); composer.focus();
+    const rect=viewport.getBoundingClientRect();
+    zoom(scale+(event.deltaY<0?.08:-.08),event.clientX-rect.left,event.clientY-rect.top);
+  },{passive:false});
+  viewport.addEventListener('pointerdown',event=>{
+    if (event.button!==0 || event.target.closest?.('button,input,textarea,a')) return;
+    const head=event.target.closest?.('.g-card-head');
+    if (head) {
+      const card=head.closest('.g-card');
+      const turn=turns.find(t=>t.id===card?.dataset.turnId);
+      if(!turn)return;
+      const p=point(turn,turns.indexOf(turn));
+      dragging={kind:'card',id:turn.id,element:card,x:p.x,y:p.y,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
+    } else if (event.target===viewport||event.target===stage||event.target===edgeLayer) {
+      dragging={kind:'pan',x:panX,y:panY,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
     }
+    if(dragging)viewport.setPointerCapture(event.pointerId);
+  });
+  viewport.addEventListener('pointermove',event=>{
+    if(!dragging || event.pointerId!==dragging.pointerId)return;
+    const dx=event.clientX-dragging.clientX,dy=event.clientY-dragging.clientY;
+    if(dragging.kind==='pan'){panX=dragging.x+dx;panY=dragging.y+dy;renderTransform();}
+    else {
+      dragging.element.style.left=dragging.x+dx/scale+'px';
+      dragging.element.style.top=dragging.y+dy/scale+'px';
+      queueEdges();
+    }
+  });
+  const end=event=>{
+    if(!dragging||event.pointerId!==dragging.pointerId)return;
+    if(dragging.kind==='card'){
+      autoFit=false;
+      const p={x:parseFloat(dragging.element.style.left),y:parseFloat(dragging.element.style.top)};
+      onMove(dragging.id,p);
+    }
+    dragging=null;
+  };
+  viewport.addEventListener('pointerup',end);
+  viewport.addEventListener('pointercancel',end);
+  function focus(id){
+    const idx=turns.findIndex(turn=>turn.id===id);
+    if(idx<0)return;
+    const p=point(turns[idx],idx);
+    const card=cards.get(id);if(!card)return;
+    zoom(1);
+    panX=viewport.clientWidth/2-(p.x+card.offsetWidth/2)*scale;
+    panY=viewport.clientHeight/2-(p.y+Math.min(card.offsetHeight,400)/2)*scale;
+    renderTransform();card.focus({preventScroll:true});
+  }
+  return {
+    element:viewport,
+    reconcile(state){
+      const routeChanged=previousRoute!==state.route;
+      if(routeChanged){previousRoute=state.route;autoFit=true;}
+      positions=state.positions;turns=state.turns;
+      const active=new Set(turns.map(t=>t.id));
+      for(const [id,card] of cards) if(!active.has(id)){card.remove();cards.delete(id);}
+      turns.forEach((turn,index)=>{
+        let card=cards.get(turn.id);
+        if(!card){
+          card=createChatCard(turn,{index,onSource,onFocus:focus});
+          card.tabIndex=-1;
+          cards.set(turn.id,card);stage.append(card);
+        } else card._update(turn);
+        if(!dragging||dragging.id!==turn.id){
+          const p=point(turn,index);
+          card.style.left=p.x+'px';card.style.top=p.y+'px';
+        }
+      });
+      onEmpty(turns.length===0);
+      queueEdges();
+      if((routeChanged||autoFit)&&viewport.clientWidth){autoFit=false;requestAnimationFrame(fit);}
+    },
+    fit,focus
   };
 }

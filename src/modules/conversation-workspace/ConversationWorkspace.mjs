@@ -1,83 +1,41 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
-import { createWorkspaceController } from './controller/workspace.mjs';
-import { workspaceStorage } from './adapters/storage.mjs';
-import { createAssistantBridge } from './adapters/assistant.mjs';
+import { control, icon } from '../../components/ui/icons.mjs';
 
-export function mountConversationWorkspace(host) {
-  host.innerHTML = `
-    <div class="app-shell">
-      <header class="app-header">
-        <div class="brand"><span class="brand-mark"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 6v8a5 5 0 0 0 5 5h5M6 10a5 5 0 0 0 5-2h5"/></svg></span><div><strong>gptdraw</strong><span>Conversation canvas</span></div></div>
-        <div class="header-tools"><span class="connection" id="connection">Connecting…</span><button id="new" type="button">+ New</button><button id="close" type="button" aria-label="Close canvas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-      </header>
-      <div id="workspace-error" class="workspace-error" role="alert" hidden></div>
-      <div class="canvas-host"></div>
-      <footer class="app-footer"><span>Drag card header · Drag background · Ctrl/⌘ + scroll to zoom</span><span>Stored in this extension</span></footer>
-      <section id="pairing" class="pairing" hidden>
-        <form id="pair-form" class="pair-card">
-          <span class="pair-symbol"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 6v8a5 5 0 0 0 5 5h5M6 10a5 5 0 0 0 5-2h5"/></svg></span><h1>Connect AI gateway</h1>
-          <p>Run the local gateway with your OpenAI API key, then enter the pairing token printed in its terminal. Your API key never enters this extension.</p>
-          <label for="pair-token">Pairing token</label>
-          <input id="pair-token" type="password" autocomplete="off" placeholder="Paste token" required minlength="16">
-          <button type="submit">Connect</button><div id="pair-error" role="status"></div>
-          <small>First slice · ChatGPT is the host page, not the AI provider. No ChatGPT conversation content is read.</small>
-        </form>
-      </section>
-    </div>`;
-  const bridge = createAssistantBridge();
-  const connection = host.querySelector('#connection');
-  const pairing = host.querySelector('#pairing');
-  const submit = host.querySelector('#pair-form button');
-  const errorBox = host.querySelector('#workspace-error');
-  const showError = error => { errorBox.textContent = error instanceof Error ? error.message : String(error); errorBox.hidden = false; };
-  const clearError = () => { errorBox.textContent = ''; errorBox.hidden = true; };
-  let paired = false, busy = false, snapshot = [];
-  let controller;
-  const canvas = createGraphCanvas({
-    onAsk: async text => {
-      if (!paired || busy) throw new Error('Connect the gateway and wait for the current request.');
-      busy = true; clearError(); canvas.render(snapshot, true);
-      try { await controller.ask(text); }
-      catch (error) { showError(error); throw error; }
-      finally { busy = false; canvas.render(snapshot, false); }
-    },
-    onRetry: async id => {
-      if (!paired || busy) return;
-      busy = true; clearError(); canvas.render(snapshot, true);
-      try { await controller.retry(id); }
-      catch (error) { showError(error); }
-      finally { busy = false; canvas.render(snapshot, false); }
-    },
-    onCancel: id => controller.cancel(id),
-    onMove: (id, position) => controller.move(id, position)
-  });
-  host.querySelector('.canvas-host').append(canvas.element);
-  controller = createWorkspaceController({
-    storage: workspaceStorage, assistant: bridge,
-    onChange: turns => { snapshot = turns; canvas.render(turns, busy); }
-  });
-  const setStatus = ({ paired: ready, model, message }) => {
-    paired = !!ready;
-    pairing.hidden = paired;
-    connection.textContent = paired ? 'Connected · ' + (model || 'AI gateway') : 'Gateway offline';
-    connection.classList.toggle('online', paired);
-    host.querySelector('#pair-error').textContent = paired ? '' : (message || '');
-    submit.disabled = false;
+export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove }) {
+  const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
+  const header=document.createElement('header'); header.className='g-topbar';
+  const branding=document.createElement('div'); branding.className='g-brand';
+  branding.append(icon('graph',22));
+  const brandingText=document.createElement('div');
+  const title=document.createElement('strong');title.textContent='gptdraw';
+  const subtitle=document.createElement('span');subtitle.textContent='Conversation graph';
+  brandingText.append(title,subtitle);branding.append(brandingText);
+  const tools=document.createElement('div');tools.className='g-toolbar';
+  const count=document.createElement('span');count.className='g-turn-count';
+  tools.append(count,control('Sync current conversation','refresh',onRefresh));
+  const compose=document.createElement('button');compose.type='button';
+  compose.className='g-primary-control';compose.append(icon('message',15));
+  compose.append(document.createTextNode(' Compose in ChatGPT'));
+  compose.addEventListener('click',onCompose); tools.append(compose,control('Close canvas','close',onClose));
+  header.append(branding,tools);wrapper.append(header);
+  const canvas=createGraphCanvas({onSource,onMove,onEmpty:empty=>emptyState.hidden=!empty});
+  wrapper.append(canvas.element);
+  const emptyState=document.createElement('div');emptyState.className='g-empty';
+  emptyState.innerHTML='<strong>No conversation detected</strong><p>Open a conversation in ChatGPT and send a message. gptdraw mirrors only what is visible on the page.</p>';
+  const openNative=document.createElement('button');
+  openNative.className='g-primary-control';openNative.type='button';
+  openNative.textContent='Back to ChatGPT';openNative.addEventListener('click',onClose);
+  emptyState.append(openNative);wrapper.append(emptyState);
+  const footer=document.createElement('footer');footer.className='g-footer';
+  footer.innerHTML='<span>Move cards by dragging their header · Ctrl/⌘ + scroll to zoom</span><span>ChatGPT owns responses · Layout stored locally</span>';
+  wrapper.append(footer);
+  return {
+    element:wrapper,
+    show(){wrapper.hidden=false;},
+    hide(){wrapper.hidden=true;},
+    render(state){
+      count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns');
+      canvas.reconcile(state);
+    }
   };
-  const unsubscribe = bridge.subscribe(setStatus);
-  host.querySelector('#pair-form').addEventListener('submit', event => {
-    event.preventDefault();
-    submit.disabled = true;
-    host.querySelector('#pair-error').textContent = 'Connecting…';
-    bridge.pair(host.querySelector('#pair-token').value);
-    host.querySelector('#pair-token').value = '';
-  });
-  host.querySelector('#new').addEventListener('click', () => canvas.focusComposer());
-  host.querySelector('#close').addEventListener('click', () => {
-    if (window.parent !== window) window.parent.postMessage({ type: 'GPTDRAW_CLOSE' }, '*');
-    else window.close();
-  });
-  window.addEventListener('pagehide', () => { controller.flush().catch(() => {}); unsubscribe(); bridge.dispose(); });
-  controller.init().then(() => { bridge.status(); canvas.fit(snapshot); })
-    .catch(error => { connection.textContent = 'Storage error'; showError(error); console.error(error); });
 }
