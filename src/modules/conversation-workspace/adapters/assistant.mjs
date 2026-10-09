@@ -34,6 +34,7 @@ export function createAssistantBridge() {
         port.postMessage({ type: 'ask', id, messages });
       });
     },
+    cancel(id) { if (!closed && jobs.has(id)) port.postMessage({ type: 'cancel', id }); },
     dispose() { if (!closed) port.disconnect(); }
   };
 }
