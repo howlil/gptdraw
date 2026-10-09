@@ -12,3 +12,10 @@ chrome.action.onClicked.addListener(async tab => {
     // The tab can predate extension installation; refreshing loads the content script.
   }
 });
+
+// One-time privacy cleanup from the superseded API/gateway implementation.
+// Only remove exact legacy keys; preserve user-owned v2 layout positions.
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.remove(['gptdraw:workspace:v1','gptdraw:gateway-pair-token'])
+    .catch(() => {});
+});
