@@ -12,6 +12,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let branches=[],pendingBranch=null,branchError=null;
   let running = false, storeTimer = 0, generation = 0;
   let observer = null;
+  let unsubscribeBranches=()=>{};
   let messageIndex = new Map(), turnIndex = new Map();
   const notify = change => onUpdate({ route, turns, positions, history, branches, pendingBranch,
     branchError, relations:branchRelations(branches,conversationId(route)) }, change);
@@ -46,6 +47,15 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       // Native conversation reading remains usable if layout storage fails.
       if (seq === generation) notify({ type:'layout' });
     }
+  }
+  async function reloadBranchState(){
+    if(!branchStorage)return;
+    const seq=generation;
+    try{
+      const [records,pending]=await Promise.all([branchStorage.list(),branchStorage.pending()]);
+      if(seq!==generation || !running)return;
+      branches=records;pendingBranch=pending;notify({type:'branch'});
+    }catch{/* Keep current canvas usable if extension storage is unavailable. */}
   }
   const callbacks = {
     onSnapshot(items) {
@@ -86,8 +96,12 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       await loadRoute(pathname());
       observer = observe(callbacks);
       observer.start();
+      unsubscribeBranches=branchStorage?.subscribe?.(reloadBranchState)||(()=>{});
     },
-    stop() { running = false; observer?.stop(); observer = null; clearTimeout(storeTimer); },
+    stop() {
+      running=false;unsubscribeBranches();unsubscribeBranches=()=>{};
+      observer?.stop();observer=null;clearTimeout(storeTimer);
+    },
     getSource(id) { return observer?.getElement(id) || null; },
     refresh() { observer?.refresh();observer?.loadEarlier?.(); },
     async fork(turnId, anchor=null) {
