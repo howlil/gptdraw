@@ -74,18 +74,28 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   async function runFork(anchor) {
     forkStatus.textContent='Opening native ChatGPT Branch…';
     fork.disabled=true;forkQuote.disabled=true;
-    try {await onFork(turn.id,anchor);forkStatus.textContent='Create the branch in ChatGPT; confirm it when opened.';}
-    catch(error){forkStatus.textContent=error.message||'Native Branch unavailable.';}
-    finally{fork.disabled=false;forkQuote.disabled=false;}
+    try {
+      await onFork(turn.id,anchor);
+      forkStatus.textContent='Create the branch in ChatGPT; confirm it when opened.';
+      return true;
+    } catch(error){
+      forkStatus.textContent=error.message||'Native Branch unavailable.';
+      return false;
+    } finally {fork.disabled=false;forkQuote.disabled=false;}
   }
   fork.addEventListener('click',()=>runFork(null));
   forkQuote.addEventListener('click',async()=>{
     if(!selected)return;
     try{
+      // User-triggered clipboard copy is best-effort. The selected quote
+      // never enters persistent extension metadata.
+      let copied=false;
+      try {await navigator.clipboard.writeText(selected.text);copied=true;}catch {}
       const anchor=await quoteAnchor(selected);
-      await runFork(anchor);
-      // The anchor is a reference, not a reduction of ChatGPT's model context.
-      forkStatus.textContent='Quote anchor recorded. Paste the quote into the new chat to focus the branch.';
+      const opened=await runFork(anchor);
+      if(opened)forkStatus.textContent=copied
+        ? 'Quote anchored and copied. Paste it into the child chat to focus the branch.'
+        : 'Quote anchored. Copy/paste the selected quote in the child chat to focus it.';
     }catch(error){forkStatus.textContent=error.message||'Selection is no longer valid.';}
   });
   footer.append(source,continueButton,fork,forkQuote);
