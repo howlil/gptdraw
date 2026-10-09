@@ -1,11 +1,13 @@
 import { createChatCard } from './ChatCard.mjs';
 import { createStartCard } from './StartCard.mjs';
 import { createMinimap } from './Minimap.mjs';
+import { createInspectionPanel } from './InspectionPanel.mjs';
+import { selectCompareId, comparisonTurns } from '../core/compare.mjs';
 import { buildBranchWorkspace } from '../core/branch-workspace.mjs';
 import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout, isCardNearViewport } from '../core/graph.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onOpenConversation }) {
+export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -32,6 +34,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     autoFit=false;renderTransform();
   }});
   viewport.append(minimap.element);
+  const inspector=createInspectionPanel();viewport.append(inspector.element);
   const outline=document.createElement('aside');outline.className='g-outline';outline.hidden=true;
   const outlineHead=document.createElement('div');outlineHead.className='g-outline-head';
   const outlineTitle=document.createElement('strong');outlineTitle.textContent='Conversation outline';
@@ -39,9 +42,20 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   outlineHead.append(outlineTitle,outlineClose);
   const outlineItems=document.createElement('div');outlineItems.className='g-outline-items';
   outline.append(outlineHead,outlineItems);viewport.append(outline);
-  let query='',outlineOpen=false;
+  let query='',outlineOpen=false,bookmarks=[],selectedCompare=[],focusedId=null;
   const searchable=turn=>((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
   const turnById=new Map(),turnIndexById=new Map();
+  const readTurn=id=>{
+    const turn=turnById.get(id);
+    if(turn){focusedId=id;inspector.openRead(turn);}
+  };
+  const selectForCompare=id=>{
+    selectedCompare=selectCompareId(selectedCompare,id,turns.map(t=>t.id));
+    for(const [key,card] of cards)card._setCompare(selectedCompare.includes(key));
+    const pair=comparisonTurns(turns,selectedCompare);
+    if(pair)inspector.openCompare(pair.left,pair.right);
+    return selectedCompare;
+  };
   const applySearch=()=>{
     for(const [id,card] of cards){
       const turn=turnById.get(id);
@@ -62,6 +76,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       number.textContent=String(i+1).padStart(2,'0');
       const text=document.createElement('span');text.textContent=turn.prompt;
       btn.append(number,text);
+      if(bookmarks.includes(turn.id))btn.prepend(document.createTextNode('◈ '));
       btn.addEventListener('click',()=>{focus(turn.id);toggleOutline();});
       outlineItems.append(btn);
     });
@@ -113,6 +128,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       let card=cards.get(turn.id);
       if(!card){
         card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,
+          onRead:readTurn,onCompare:selectForCompare,onBookmark,
           isLatest:index===turns.length-1});
         card.tabIndex=-1;cards.set(turn.id,card);stage.append(card);
         cardResize?.observe(card);
@@ -123,6 +139,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
       }
       card._turnIndex=index;
+      card._setBookmark(bookmarks.includes(turn.id));
+      card._setCompare(selectedCompare.includes(turn.id));
       if(!dragging || dragging.id!==turn.id){
         const p=point(turn,index);
         card.style.left=p.x+'px';card.style.top=p.y+'px';
@@ -287,6 +305,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   function focus(id){
     const idx=turns.findIndex(turn=>turn.id===id);
     if(idx<0)return;
+    focusedId=id;
     const p=point(turns[idx],idx),card=cards.get(id);
     scale=1;autoFit=false;
     panX=viewport.clientWidth/2-(p.x+(card?.offsetWidth||366)/2);
@@ -298,8 +317,9 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     element:viewport,
     reconcile(state, change){
       const routeChanged=previousRoute!==state.route;
-      if(routeChanged){previousRoute=state.route;initialFocusPending=true;stablePositions.clear();}
-      positions=state.positions;turns=state.turns;
+      if(routeChanged){previousRoute=state.route;initialFocusPending=true;stablePositions.clear();
+        selectedCompare=[];focusedId=null;inspector.hide();}
+      positions=state.positions;turns=state.turns;bookmarks=state.bookmarks||[];
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
       if(routeChanged){turnById.clear();turnIndexById.clear();}
       if(!routeChanged && change?.type==='patch'){
@@ -314,6 +334,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         }
         if(query)applySearch();
         return; // Constant-work streaming update: no layout scan, edge rebuild or DOM churn.
+      }
+      if(!routeChanged && change?.type==='bookmark'){
+        cards.get(change.turnId)?._setBookmark(bookmarks.includes(change.turnId));
+        renderOutline();
+        return;
       }
       if(!routeChanged && change?.type==='position'){
         const card=cards.get(change.turnId);
@@ -341,6 +366,15 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       }
     },
     fit,focus,
+    closeInspector:()=>inspector.hide(),
+    nextTurn(step=1){
+      if(!turns.length)return;
+      const index=turnIndexById.get(focusedId);
+      const next=Math.max(0,Math.min(turns.length-1,(index??turns.length-1)+step));
+      focus(turns[next].id);
+    },
+    readFocused(){const id=focusedId||turns[turns.length-1]?.id;if(id)readTurn(id);},
+    focusBranches,
     search(value) {query=String(value||'').trim().toLowerCase();applySearch();if(query)outlineOpen=true;outline.hidden=!outlineOpen;renderOutline();},
     toggleOutline
   };
