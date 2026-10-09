@@ -40,8 +40,13 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
   }
   const callbacks = {
     onSnapshot(items) {
-      messages = mergeVisibleMessages(messages,items,history.status==='loading');
-      refresh();
+      const merged = mergeVisibleMessages(messages,items,history.status==='loading');
+      const changed = merged.length !== messages.length || merged.some((row,i) =>
+        row.id !== messages[i]?.id || row.role !== messages[i]?.role || row.text !== messages[i]?.text);
+      messages = merged;
+      // Backfill checks periodically. Skip graph reconciliation when the site
+      // hasn't exposed another turn; leave per-token updates on the patch path.
+      if (changed) refresh();
     },
     onHistory(status) {
       history={...status};notify({type:'history'});
