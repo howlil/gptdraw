@@ -2,6 +2,8 @@ import { consumeSSE } from '../src/modules/conversation-workspace/core/sse.mjs';
 
 const GATEWAY = 'http://127.0.0.1:8787';
 const TOKEN_KEY = 'gptdraw:gateway-pair-token';
+// Do not expose the local gateway pairing credential to content scripts.
+chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(console.error);
 chrome.action.onClicked.addListener(() => chrome.tabs.create({ url: chrome.runtime.getURL('extension/workspace.html') }));
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'gptdraw-gateway' || port.sender?.id !== chrome.runtime.id) return;
