@@ -43,7 +43,7 @@ export async function backfillHistory({
   let outcome='limited',steps=0,lastCount=-1,lastHeight=-1,lastHead=null,stable=0;
   let count=0;
   const abort=()=>signal?.aborted||scroller.isConnected===false;
-  onStatus({status:'loading',steps:0,count:0});
+  onStatus({status:'loading',phase:'up',steps:0,count:0});
   try {
     // Phase 1: page toward the earliest rendered turn. One large jump often
     // misses virtualization sentinels, so cross the scrollport in increments.
@@ -61,7 +61,7 @@ export async function backfillHistory({
       const unchanged=atTop && lastHead===head && lastHeight===height && lastCount===count;
       stable=unchanged?stable+1:0;
       lastHead=head;lastHeight=height;lastCount=count;
-      if(steps%4===0||!unchanged)onStatus({status:'loading',steps:steps+1,count});
+      if(steps%4===0||!unchanged)onStatus({status:'loading',phase:'up',steps:steps+1,count});
       // Remain at top for multiple delayed loading rounds; stability is not
       // proof of complete account history, only the currently reachable DOM.
       if(stable>=idleLimit){outcome='reached-top';steps++;break;}
@@ -82,7 +82,7 @@ export async function backfillHistory({
         count=Math.max(count,info?.count||0);
         const end=scroller.scrollTop>=Math.max(0,scroller.scrollHeight-scroller.clientHeight-2);
         stable=end?stable+1:0;
-        if(steps%4===0)onStatus({status:'loading',steps:steps+1,count});
+        if(steps%4===0)onStatus({status:'loading',phase:'down',steps:steps+1,count});
         if(stable>=3){outcome='reached-top';steps++;break;}
       }
     }
