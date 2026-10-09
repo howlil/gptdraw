@@ -65,6 +65,7 @@ gptdraw/
 - **Projection:** index native message IDs and their owning turn. Recompute prompt/reply pairs only when message structure changes; streaming patches update the matching turn and card directly in constant lookup work. Never query the whole page on each token.
 - **Renderer:** one stable card element per user-turn ID; update `textContent` for changed assistant response. Do not `innerHTML` or rebuild all cards every event.
 - **History:** on an existing `/c/` route, discover the native conversation scrollport using message ancestors (never the sidebar), progressively set its scroll to the earliest loaded position and await DOM lazy loading. Stop at a stable top, cancellation, or a bounded attempt count. Merge historical visible snapshots into volatile RAM; do not persist chat content. Preserve the prior distance from the bottom after backfill, and never restore scroll after route cancellation. A failed/unavailable scrollport must remain visible as a limitation.
+- **Stable canvas placement:** maintain position by turn ID in a canvas-local map. When older messages prepend during backfill, place new cards to the left of known nodes without shifting existing cards; provide First/Latest navigation. Layout metadata still stores only user-overridden coordinates.
 - **Canvas:** CSS transform pan/zoom and lightweight SVG paths. The workspace is bounded to the real ChatGPT `main.getBoundingClientRect()`; measure again when sidebar/main dimensions change. Never cover native sidebar/navigation. Avoid giant rasterized planes and reparsing markdown for each streamed token. Manual positions persist at a debounced rate.
 - **CSS:** strictly black/white semantic tokens in light/dark mode, short open/hover transitions only; no motion on streaming, panning or zooming. Tailwind compiled/minified at build; inject into closed Shadow DOM via local stylesheet. No runtime Tailwind, React, model SDK, GL libraries, or remote code.
 - **Beautiful UI:** component patterns and optional sourced primitives only, adapted to real data. Upstream demo/React components are **not** currently installed; do not pretend otherwise.
@@ -86,6 +87,7 @@ gptdraw/
 | Parser compatibility | Fixture tests for wrapper `data-turn`, nested roles, role-only variants, missing reply and IDs |
 | Streaming mutations | Observer test proving text delta patch does **not** rescan the conversation |
 | Old history | Bounded scroller/backfill tests for earliest loadable turn, virtualized pages, cancellation and scroll restore |
+| Canvas placement | Unit regression for stable positions across prepend and first/latest navigation availability |
 | Overlay lifecycle | Chrome toolbar icon only (no DOM launcher); close/reopen observer re-subscription |
 | Layout | Chrome metadata storage roundtrip, invalid coordinates rejected, route separation |
 | Build/CSP | Manifest artifact, esbuild, Tailwind output, no gateway strings |

@@ -34,11 +34,11 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Nodes represent consecutive visible turn pairs in one ChatGPT conversation. The overlay is measured against the native `main` bounding rectangle and updates when the sidebar opens/closes. Do not position the workspace across the full viewport or cover ChatGPT navigation.
 - Edges in the first slice are a **sequential reading path**, not confirmed native branch relationships.
 - Pan the empty canvas; move nodes by dragging the **header only**. Text selection, links, buttons and internal scroll do not initiate canvas dragging.
-- Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; Fit shows detected cards; Focus centers a card for reading.
+- Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; Fit shows detected cards; Focus centers a card for reading. **First / Latest** actions navigate directly to the oldest available or newest turn without traversing the full horizontal graph.
 - Return-to-source closes the overlay and scrolls the native ChatGPT message into view.
 - Overview zoom is for topology. At unreadable zoom, Focus is the preferred reading surface.
 - Persist user-moved card positions by ChatGPT conversation route. Do not persist answer/prompt text or call layout data a conversation backup.
-- **Historic chat backfill:** after opening an existing conversation, progressively scroll its *native conversation scrollport* toward the earliest loadable turn. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
+- **Historic chat backfill:** after opening an existing conversation, progressively scroll its *native conversation scrollport* toward the earliest loadable turn. Previously positioned cards retain their coordinates when an older prefix appears; older nodes extend to the left without displacing current focus. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
 
 ## Composer behavior
 
