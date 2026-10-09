@@ -63,8 +63,8 @@
   background-size:22px 22px;touch-action:none;
 }
 .g-viewport:active {cursor:grabbing;}
-.g-world {position:absolute;left:0;top:0;width:100000px;height:100000px;transform-origin:0 0;}
-.g-edges {position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;}
+.g-world {position:absolute;left:0;top:0;width:1px;height:1px;transform-origin:0 0;}
+.g-edges {position:absolute;inset:0;width:1px;height:1px;overflow:visible;pointer-events:none;}
 .g-card {
   @apply absolute overflow-hidden rounded-2xl border;
   width:420px;min-height:154px;max-height:560px;
