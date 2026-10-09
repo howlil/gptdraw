@@ -19,9 +19,9 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 - **No OpenAI API key, model gateway, ChatGPT undocumented API, session scraping or account login recreation.**
 - **Automatically show gptdraw when ChatGPT loads**, replacing only chat main; Chrome's extension toolbar icon toggles graph/native modes. **Back to ChatGPT** restores native UI and persists that choice for the current tab session. Never add a floating Graph launcher.
 - DOM access happens in an **isolated content script**, observing visible turns. **Keep native sidebar/navigation fully usable**: draw the canvas only inside the computed ChatGPT `main` bounding box. Never hide/move/delete ChatGPT's React-owned messages or sidebar. User-initiated Start Card submission may populate the visible native ChatGPT composer and click its real Send control; do not call hidden APIs.
-- Model messages are not copied into extension storage. Layout only (route-specific positions) is stored locally. Assistant Markdown is projected as safe structured text, never copied as raw executable HTML. Older turns may be held in *volatile memory* during progressive native scroll backfill; cancel backfill on route change/close and restore the native user's scroll.
-- An action is enabled only if its real native ChatGPT DOM target exists. Empty/new chats show exactly **one functional Start Card** instead of a full-screen empty modal. Native send fallback must preserve the unsent draft. No fake Fork, attachment, model selection, sources or thinking.
-- Canvas preserves the approved Dialogue prototype in monochrome: ~366px cards, compact numbered header, user bubble on right, structured assistant content on left, inline composer for latest card and source/continue actions without fake Fork. Initial camera focuses latest at readable zoom; Fit is optional. One graph card equals one user prompt and the following assistant response.
+- Model messages are not copied into extension storage. **Only** layout and explicitly confirmed branch metadata (conversation/message IDs, quote offsets + digest, no plaintext) are stored locally. Assistant Markdown is projected as safe structured text, never copied as raw executable HTML. Older turns may be held in *volatile memory* during progressive native scroll backfill; cancel backfill on route change/close and restore the native user's scroll.
+- Native Fork must discover the source message's actual **More → Branch in new chat** menu before activation; unavailable integration must give a clear error. Never assume clicking a menu means the child exists. Explicit confirmation is required for persistent cross-conversation lineage; reject unstable positional IDs, cycles and duplicate child ownership. Empty/new chats show exactly one functional Start Card. No invented attachments, model selection, citations or reasoning.
+- Canvas preserves the approved Dialogue prototype in monochrome: ~366px cards, compact numbered header, user bubble on right, structured assistant content on left, inline composer for latest card and source/continue actions with real native Fork gating. Initial camera focuses latest at readable zoom; Fit is optional. One graph card equals one user prompt and the following assistant response.
 
 ## Routing
 
@@ -65,7 +65,7 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 | Change | Evidence |
 | --- | --- |
 | Product copy, tokens, docs | Inspect changed surface and token parity |
-| Turn pairing, stable IDs, source navigation | Unit/fixture tests + DOM smoke test |
+| Turn pairing, stable IDs, source navigation, lineage | Unit/fixture tests incl cycles, pending confirmation, virtualized recovery + real-site DOM smoke test |
 | DOM selectors, streaming, historical chat backfill | Browser fixture + MutationObserver batching, progressive earliest-message loader, abort + scroll restoration, no full scan per token |
 | Graph drag/pan/zoom, route layout | Interaction and persistence test + manual Chrome visual review |
 | Chrome permissions, injection, security | Manifest/Shadow DOM/host boundary review |

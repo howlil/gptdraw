@@ -19,16 +19,16 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 - The earlier HTML prototype created fictional assistant answers, stored conversations in an in-memory JS graph and used section indexes as fork anchors. **It is a visual reference, not the runtime data source**.
 - The initial `0 turns` bug was caused by recognizing conversation wrappers while **requiring a nested `data-message-author-role`**. Current adapter checks wrapper `data-turn=user|assistant` first, then nested `data-message-author-role` and `data-conversation-role`, and falls back to role-only messages or `data-turn-key` grouped exchanges when the user bubble is present. Text extraction uses known user-bubble and assistant-markdown selectors. All remain **version-sensitive** and require live ChatGPT verification.
 - DOM snapshots do not necessarily include hidden messages, model context, tools, attachments or historical branches.
-- A sequential connector between visible turns is not a confirmed ChatGPT-native fork. Fork automation should not be displayed until the real branching path and source anchoring have been verified.
+- Solid connectors remain sequential. **Native Fork is implemented behind message-specific DOM discovery**, but not yet verified on a real logged-in ChatGPT instance. A pending action is never an edge; user-confirmed parent/child metadata is rendered as dashed lineage. Quote anchors contain offsets/digest, not source text.
 - Native ChatGPT composer remains the actual send mechanism in first slice; extension can return focus to it but does not fake sending.
 
 ## User-job graph
 
 **Now / corrected first slice:** open ChatGPT → automatically show graph (no page floating trigger) → replace only conversation main (sidebar stays visible) → read source-derived turns and live text changes → pan/zoom/focus → return to native message. **If no turns are detected, render one Start Card in the graph** with textarea and a native ChatGPT Send bridge; if native submission is unavailable, preserve the draft and hand off to ChatGPT. For old chats, walk toward the earliest DOM-loadable user turn without covering sidebar, preserve the original scroll position, and retain virtualized messages in memory while canvas is open. Back to ChatGPT restores native chat and keeps that preference for the tab; the Chrome toolbar icon toggles. Reopen retains card positions.
 
-**Next:** verify native branch action and route changes → store parent/child conversation **metadata**, and show genuine fork edges with source provenance. Confirm behavior using live ChatGPT manual tests before claiming automatic branching.
+**Implemented in code, browser verification still pending:** native message menu detection → pending Fork → explicit child confirmation → persisted parent/child metadata → navigable dashed lineage. A known native UI action is required; automated tests use DOM fixtures only.
 
-**Later:** selected quote fork, richer native response rendering, adaptive composer bridge, search/outline, large-graph optimization and optional comparison modes, without ever recreating the AI provider.
+**Implemented with limitations:** single-block selected quote hashing/copy, true list/table/code/link rendering from safe typed DOM, search/outline, focused latest card and viewport culling for 80+ turns. **Still unsupported:** automatic focused-quote context reduction, provider-native citations/widgets, attachments, real-site Chrome smoke and measured FPS.
 
 ## UX research & design process
 
@@ -51,5 +51,5 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 - Exact native ChatGPT DOM and accessibility selectors across account plans/site versions (manual inspection required).
 - Whether a native Branch action can be safely triggered via DOM without dependence on a brittle internal event contract.
 - Stable IDs when ChatGPT virtualizes/recreates message DOM or regenerates responses.
-- Rich response/citations extraction without copying untrusted HTML.
+- High-fidelity native citations and embedded tool widgets without copying untrusted HTML.
 - Beautiful UI's React demo primitives vs lightweight project-owned low-level components: only integrate source when it adds concrete value without faking functionality.

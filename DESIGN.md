@@ -6,7 +6,7 @@
 
 User journey: **navigate to ChatGPT → gptdraw opens automatically over the main chat area → read a focused prompt+answer card → search/outline/explore earlier turns → Back to ChatGPT restores native main → toolbar icon toggles modes**. The native-view preference persists for the tab session.
 
-One graph card = one user turn + its following assistant response (which may still be empty/streaming). The initial implementation shows a **sequential conversation spine**, not true fork lineage. Fork is future work requiring a verified native action.
+One graph card = one user turn + its following assistant response (which may still be empty/streaming). **Sequential** edges connect turns within a conversation. **Dashed lineage** edges connect confirmed parent/child conversations from metadata only. Native Fork is gated by real DOM action discovery and explicit user confirmation; it is not a second conversation engine.
 
 ## Visual system
 
@@ -27,18 +27,25 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Content stays text-first; no fake sources, thinking steps, model actions or attachment indicators.
 - Pending assistant turns show an honest waiting state.
 - Stable DOM node identity: never replace the entire card on every streaming token.
-- Content formatting: safely project the *rendered* assistant Markdown structure as typed headings, paragraphs, lists, tables and code blocks using DOM `textContent` / `innerText`; prioritize real answer content over reasoning-time labels. Never inject copied ChatGPT `innerHTML`. Full interactive citations/source previews remain unsupported.
+- Content formatting: safely project *rendered* Markdown as typed headings, paragraphs, true list/table elements, code blocks with Copy and sanitized HTTP(S) links using DOM `textContent` / `innerText`. Do not inject copied ChatGPT `innerHTML`. Native embedded widgets, proprietary citations, hidden reasoning and attachments remain unsupported.
 
 ## Conversation canvas
 
 - Nodes represent consecutive visible turn pairs in one ChatGPT conversation. The overlay is measured against the native `main` bounding rectangle and updates when the sidebar opens/closes. Do not position the workspace across the full viewport or cover ChatGPT navigation.
-- Edges in the first slice are a **sequential reading path**, not confirmed native branch relationships.
+- Solid edges are **sequential reading paths**; dashed edges represent **explicitly confirmed native ChatGPT parent/child relations**, with branch-node navigation. Do not fabricate branch edges for pending actions.
 - Pan the empty canvas; move nodes by dragging the **header only**. Text selection, links, buttons and internal scroll do not initiate canvas dragging.
 - Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; **default to focused latest card at 100%** (rather than an unreadable 40% graph). Fit is an explicit overview command; Focus centers a card for reading. Find Card and searchable Outline provide shortcuts. **First / Latest** actions navigate directly to the oldest available or newest turn without traversing the full horizontal graph.
-- Return-to-source closes the overlay and scrolls the native ChatGPT message into view.
+- Return-to-source closes the overlay only after resolving the true native source. For virtualized history, progressively seek and reveal it in the native scrollport; if unavailable or ID is positional, show a clear error instead of navigating to an incorrect message.
 - Overview zoom is for topology. At unreadable zoom, Focus is the preferred reading surface.
 - Persist user-moved card positions by ChatGPT conversation route. Do not persist answer/prompt text or call layout data a conversation backup.
 - **Historic chat backfill:** after opening an existing conversation, progressively scan the *native conversation scrollport* upward to the earliest loadable turn, then downward through virtualized rows, merging all observed turn IDs without network/private APIs. Previously positioned cards retain their coordinates when an older prefix appears; older nodes extend to the left without displacing current focus. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
+
+## Fork and quote semantics
+
+- **Fork message:** user-triggered native ChatGPT Branch action from the assistant's source message only when its real menu is discoverable; show genuine unavailable states.
+- **Fork selected quote:** anchor a single selected response block with block index, offsets and SHA-256 digest. Do not persist selected plaintext. Copy quote on user gesture when permission permits; user pastes it in child to focus the model. This does not change native ChatGPT's inherited context.
+- **Confirmation:** pending is not a graph edge. User confirms parent/child only after native child exists. Reject cycles and double-parent linkage. Render confirmed lineage as dashed edges and navigable child/parent nodes.
+- **Continue earlier:** create native branch first, not submit silently to the active conversation.
 
 ## Composer behavior
 
@@ -57,6 +64,7 @@ Any adoption of upstream Beautiful UI source must preserve license, document dep
 - A current ChatGPT conversation opens as connected prompt+answer cards without another login or API key. `data-turn` on conversation wrappers must be checked before fallback role descendants; unsupported variants must be reported as undetected rather than inventing text.
 - Streaming updates update only the affected response node; no page-wide DOM scan for every token and no synthetic word-by-word animation. The full graph is not reconciled when a backfill scan finds no new text.
 - **Motion:** subtle ~140–150ms entrance, hover and focus transitions. No animated CSS transforms while dragging, zooming, or streaming. Respect `prefers-reduced-motion`.
+- **Large graphs:** when there are 80+ turns, mount only viewport-near cards with margin, preserving focus/composer and the searchable in-memory graph. Keep edges lightweight and avoid full-card remounts per token.
 - Close/reopen restores a live native ChatGPT session and saved card positions; no message capture to extension storage.
 - Unsupported UI states are omitted, not represented as working controls.
 - Keyboard Escape closes; source/compose buttons have real native actions; explicit Zoom/Fit controls support non-pointer navigation.

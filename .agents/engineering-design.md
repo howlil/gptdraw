@@ -11,9 +11,13 @@
                  │
                  ├── adapters/chatgpt-dom.mjs     # MutationObserver + DOM parsing
                  ├── adapters/response-content.mjs # safe visible Markdown block extraction
+                 ├── adapters/chatgpt-branch.mjs # gated native Branch action
+                 ├── adapters/branches.mjs       # confirmed lineage metadata
+                 ├── adapters/source-navigation.mjs # explicit old-source recovery
                  ├── adapters/history.mjs         # cancellable native scroll backfill
                  ├── core/graph.mjs               # prompt/reply pairing; pure identities
-                 ├── core/history.mjs             # virtualized snapshot merge
+                 ├── core/history.mjs             # linear virtualized snapshot merge
+                 ├── core/branch.mjs              # pending/confirmed lineage invariants
                  ├── controller/workspace.mjs     # per-overlay projection + metadata
                  ├── adapters/metadata.mjs        # chrome.storage.local: positions only
                  └── components/                  # native incremental canvas/cards
@@ -42,17 +46,22 @@ gptdraw/
       conversation-workspace/
         ConversationWorkspace.mjs # visual composition
         core/graph.mjs            # deterministic turn pairing, route, position
-        core/history.mjs          # merge historical DOM pages into RAM-only projection
+        core/history.mjs          # linear merge of virtualized DOM pages
+        core/branch.mjs           # cycle/duplicate-safe pending+confirmed lineage
         adapters/
           chatgpt-dom.mjs         # DOM selector/mutation compatibility
           history.mjs             # two-way native scroll + progress/cancellation
-          response-content.mjs    # assistant heading/paragraph/list/code/table projection
+          response-content.mjs    # safe typed answer blocks and links
+          chatgpt-branch.mjs      # native message More → Branch action
+          branches.mjs            # local metadata only
+          source-navigation.mjs   # native scroll source recovery
           native-composer.mjs     # user-initiated native editor/Send bridge
           metadata.mjs            # layout only, versioned chrome.storage keys
         controller/workspace.mjs  # conversation projection and view lifecycle
         components/
           GraphCanvas.mjs         # viewport gestures and sequential SVG edges
           ChatCard.mjs            # native DOM card (stable element per turn)
+          ResponseBlock.mjs       # safe list/table/code/link renderer
           StartCard.mjs           # real compose/send for zero-turn workspaces
   scripts/build.mjs               # compile/bundle & copy MV3 manifest
   tests/                          # deterministic unit/fixture checks
@@ -65,9 +74,10 @@ gptdraw/
 
 - **DOM observer** selects the active conversation `main` (or role-based fallback) and attaches to that subtree. Detection order: wrapper `data-turn`, nested/bare `data-message-author-role` or `data-conversation-role`, then a conservative `data-turn-key` grouped exchange fallback using a real user bubble. A missing user marker is never reconstructed from an assistant response. Its MutationObserver groups changes to one `requestAnimationFrame`. For character data changes, reread only the impacted turn; rescan message wrappers only on structural changes or route switches. Watch body direct children for host remounts.
 - **Projection:** index native message IDs and their owning turn. Recompute prompt/reply pairs only when message structure changes; streaming patches update the matching turn and card directly in constant lookup work. Never query the whole page on each token.
-- **Renderer:** one stable card element per user-turn ID; update only changed typed answer blocks (Markdown heading, paragraph, list, code, table) with textContent. Do not `innerHTML` or rebuild all cards every event.
+- **Renderer:** one stable card element per mounted user-turn ID; update only changed typed answer blocks (heading, list, table, code with Copy, HTTP(S) links) using safe DOM APIs. Do not `innerHTML` or rebuild all cards every event.
 - **History:** on an existing `/c/` route, discover the native conversation scrollport using message ancestors (never the sidebar). Scan progressively UP to reach lazy-loaded older messages, and DOWN to collect later virtualized pages; cumulative RAM-only count is fed back to the adapter. Never claim a stable DOM proves complete account history. Stop at a stable top, cancellation, or a bounded attempt count. Merge historical visible snapshots into volatile RAM; do not persist chat content. Preserve the prior distance from the bottom after backfill, and never restore scroll after route cancellation. A failed/unavailable scrollport must remain visible as a limitation.
 - **Stable canvas placement:** maintain position by turn ID in a canvas-local map. When older messages prepend during backfill, place new cards to the left of known nodes without shifting existing cards; provide First/Latest navigation. Layout metadata still stores only user-overridden coordinates.
+- **Large canvas:** at 80+ turns, mount only nearby cards with viewport overscan, using a pure culling predicate, and avoid offscreen sequential edges. Position and history merges run in linear time; retain the focused/drafted card.
 - **Canvas:** CSS transform pan/zoom and lightweight SVG paths. The workspace is bounded to the real ChatGPT `main.getBoundingClientRect()`; measure again when sidebar/main dimensions change. Never cover native sidebar/navigation. Avoid giant rasterized planes and reparsing markdown for each streamed token. Manual positions persist at a debounced rate.
 - **Camera:** default to latest turn focused at readable 100% scale; Fit only by user request, Find Card + Outline for navigation, stable coordinates during prepend.
 - **Activation:** content script starts overlay automatically unless user selected native mode in sessionStorage; toolbar toggles and Back to ChatGPT persists normal mode for this tab. No floating launcher.
@@ -80,7 +90,7 @@ gptdraw/
 - Turn ID uses rendered DOM `data-message-id`/turn data-testid, else a weaker positional fallback. **IDs are not guaranteed durable across ChatGPT DOM versions**. Namespaced layout by `/c/:conversationId` route; reject invalid position values.
 - Native ChatGPT response is the current truth; gptdraw does not store prompt/answer snapshots. On extension upgrade the background service worker deletes the two exact legacy keys, `gptdraw:workspace:v1` and `gptdraw:gateway-pair-token`, left by the deprecated API-client version.
 - A response text mutation changes only the affected card. No synthetic AI answers or private reasoning states.
-- Sequence links connect adjacent visible turns. Real branch ancestry/selected quote offsets require a separate verified domain contract. Do not call a sequence edge a fork.
+- Solid sequence links connect adjacent turns; dashed links connect only explicit user-confirmed parent/child conversation relations. Native Fork menu detection is conservative and **not** proven against real ChatGPT DOM yet. Branches are pending until child confirmation. Quote anchor has block index, offsets and SHA-256 digest, never stored plaintext. Child ancestry is metadata-only, not a new model context engine.
 - When host DOM changes or the page is not a conversation, display an honest empty/fallback state; never silently switch to a fake model source.
 - Closing overlay leaves native page intact; source action scrolls to corresponding native message; native Compose returns to the actual input. A single Start Card is rendered at zero turns; its submit uses the native composer input events and real Send button when possible, or hands over an unsent draft without pretending the request succeeded. Legacy `TRUSTED_CONTEXTS` access level is reset for the extension's isolated content script because only non-secret layout metadata remains.
 
@@ -103,8 +113,8 @@ Test-first on real invariants. Use `npm run test` and `npm run build`; CI valida
 
 **Slice 01 implemented:** capture current chat → normalize → update projected graph on streaming DOM mutation → navigate to source → layout persists. No model login/API key.
 
-**Slice 02 next:** use verified native Branch action and detect newly created conversation route, store parent-child conversation graph metadata, recover true anchors. Do not import provider integration.
+**Slice 02 implemented in source, live-gated:** native More → Branch action, pending intent, manual child confirmation, validated parent/child graph and persistent metadata. New-tab/route behavior still requires manual Chrome verification; never report a native branch as confirmed without user action.
 
-**Slice 03:** responsive focus/overview, native composer bridge, advanced code/table/citation projection only with verified security and performance.
+**Slices 03–05 implemented in source with limits:** one-block selected quote digest/copy and native Continue-as-branch; typed safe code/table/list/link renderer; virtualized 80+ canvas, linear history/layout merges and old-source scroll recovery. Native citations, tools/attachments, automatic quote-context reduction, browser performance measurement and live ChatGPT compatibility remain unverified/unsupported.
 
 All slices extend the same ownership tree; do not rebuild the app horizontally or schedule a blanket structural refactor.
