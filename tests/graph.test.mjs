@@ -51,7 +51,7 @@ test('metadata adapter stores positions only, not ChatGPT message content',async
 });
 
 test('controller projects visible messages, updates only layout and restores positions',async()=>{
-  let callbacks;let stopped=false, written=null, snapshot;
+  let callbacks;let stopped=false, written=null, snapshot, lastChange;
   const controller=createWorkspaceController({
     pathname:()=>'/c/test',
     observe:cb=>{callbacks=cb;return {
@@ -61,14 +61,16 @@ test('controller projects visible messages, updates only layout and restores pos
       refresh(){cb.onSnapshot([{id:'u1',role:'user',text:'Question'}, {id:'a1',role:'assistant',text:'Updated'}]);}
     };},
     layoutStorage:{read:async()=>({u1:{x:100,y:200}}),write:async(route,points)=>{written={route,points};}},
-    onUpdate:state=>{snapshot=state;}
+    onUpdate:(state,change)=>{snapshot=state;lastChange=change;}
   });
   await controller.start();
   assert.equal(snapshot.turns[0].answer,'Answer');
   assert.deepEqual(snapshot.positions.u1,{x:100,y:200});
   callbacks.onPatch({id:'a1',role:'assistant',text:'Updated in place'});
   assert.equal(snapshot.turns[0].answer,'Updated in place');
+  assert.deepEqual(lastChange,{type:'patch',turnId:'u1'});
   controller.move('u1',{x:240,y:340});
+  assert.deepEqual(lastChange,{type:'position',turnId:'u1'});
   await controller.persist();
   assert.deepEqual(written,{route:'conversation:test',points:{u1:{x:240,y:340}}});
   assert.equal(controller.getSource('u1').id,'native');
