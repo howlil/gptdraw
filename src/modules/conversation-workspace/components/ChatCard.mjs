@@ -44,7 +44,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,isL
   continueButton.append(icon('navigate',13),document.createTextNode(' Continue'));
   continueButton.addEventListener('click',()=>{
     if(card.classList.contains('g-latest'))composerInput.focus();
-    else onCompose();
+    else onSource(turn.userId);
   });
   footer.append(source,continueButton);
   const composer=document.createElement('form');composer.className='g-node-composer';
