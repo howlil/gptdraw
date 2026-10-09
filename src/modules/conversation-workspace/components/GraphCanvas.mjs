@@ -22,6 +22,47 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     control('Zoom in','plus',()=>zoom(scale+.12)),
     control('Fit conversation','fit',()=>fit()),latestButton);
   viewport.append(controls);
+  const outline=document.createElement('aside');outline.className='g-outline';outline.hidden=true;
+  const outlineHead=document.createElement('div');outlineHead.className='g-outline-head';
+  const outlineTitle=document.createElement('strong');outlineTitle.textContent='Conversation outline';
+  const outlineClose=control('Close outline','close',()=>toggleOutline());
+  outlineHead.append(outlineTitle,outlineClose);
+  const outlineItems=document.createElement('div');outlineItems.className='g-outline-items';
+  outline.append(outlineHead,outlineItems);viewport.append(outline);
+  let query='',outlineOpen=false;
+  const searchable=turn=>((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
+  const applySearch=()=>{
+    for(const turn of turns){
+      const card=cards.get(turn.id);if(!card)continue;
+      const hit=!query||searchable(turn).includes(query);
+      card.classList.toggle('g-search-dim',!!query&&!hit);
+      card.classList.toggle('g-search-hit',!!query&&hit);
+    }
+  };
+  function renderOutline(){
+    if(!outlineOpen)return;
+    outlineItems.replaceChildren();
+    turns.forEach((turn,i)=>{
+      if(query&&!searchable(turn).includes(query))return;
+      const btn=document.createElement('button');btn.type='button';
+      btn.className='g-outline-item';
+      const number=document.createElement('span');number.className='g-outline-number';
+      number.textContent=String(i+1).padStart(2,'0');
+      const text=document.createElement('span');text.textContent=turn.prompt;
+      btn.append(number,text);
+      btn.addEventListener('click',()=>{focus(turn.id);toggleOutline();});
+      outlineItems.append(btn);
+    });
+    if(!outlineItems.childElementCount){
+      const empty=document.createElement('p');empty.className='g-outline-empty';
+      empty.textContent='No matching cards';outlineItems.append(empty);
+    }
+  }
+  function toggleOutline(){
+    outlineOpen=!outlineOpen;
+    outline.hidden=!outlineOpen;
+    if(outlineOpen)renderOutline();
+  }
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
   let autoFit = true, edgesQueued = false, previousRoute = null, initialFocusPending = true;
@@ -136,6 +177,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
         if(card)card._update(turns[card._turnIndex],card._turnIndex,card._turnIndex===turns.length-1);
+        if(query)applySearch();
         return; // Constant-work streaming update: no layout scan, edge rebuild or DOM churn.
       }
       if(!routeChanged && change?.type==='position'){
@@ -163,6 +205,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
           card.style.left=p.x+'px';card.style.top=p.y+'px';
         }
       });
+      applySearch();renderOutline();
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route);
       queueEdges();
@@ -172,6 +215,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         requestAnimationFrame(()=>latest?focus(latest.id):fit());
       }
     },
-    fit,focus
+    fit,focus,
+    search(value) {query=String(value||'').trim().toLowerCase();applySearch();if(query)outlineOpen=true;outline.hidden=!outlineOpen;renderOutline();},
+    toggleOutline
   };
 }
