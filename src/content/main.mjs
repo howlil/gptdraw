@@ -1,6 +1,8 @@
 import { createChatGPTObserver, findChatMain } from '../modules/conversation-workspace/adapters/chatgpt-dom.mjs';
 import { submitNativePrompt, findNativeComposer } from '../modules/conversation-workspace/adapters/native-composer.mjs';
 import { createLayoutStorage } from '../modules/conversation-workspace/adapters/metadata.mjs';
+import { createBranchStorage } from '../modules/conversation-workspace/adapters/branches.mjs';
+import { prepareNativeBranch } from '../modules/conversation-workspace/adapters/chatgpt-branch.mjs';
 import { createWorkspaceController } from '../modules/conversation-workspace/controller/workspace.mjs';
 import { createConversationWorkspace } from '../modules/conversation-workspace/ConversationWorkspace.mjs';
 
@@ -41,6 +43,8 @@ if (!document.getElementById(HOST_ID)) {
   const controller=createWorkspaceController({
     pathname:()=>location.pathname,
     layoutStorage:storage,
+    branchStorage:createBranchStorage(chrome.storage.local),
+    prepareFork:node=>prepareNativeBranch(document,node),
     observe:callbacks=>createChatGPTObserver({document,...callbacks}),
     onUpdate:(state,change)=>workspace.render(state,change)
   });
@@ -70,6 +74,14 @@ if (!document.getElementById(HOST_ID)) {
         requestAnimationFrame(()=>findNativeComposer(document)?.focus?.());
       }
       return result;
+    },
+    onFork:(id,anchor)=>controller.fork(id,anchor),
+    onConfirmBranch:()=>controller.confirmPending(),
+    onDismissBranch:()=>controller.dismissPending(),
+    onOpenConversation:id=>{
+      // Route IDs are obtained from native URLs or validated branch metadata.
+      if(!/^[A-Za-z0-9_-]+$/.test(id))return;
+      window.location.assign('/c/'+encodeURIComponent(id));
     },
     onRefresh:()=>controller.refresh(),
     onMove:(id,position)=>controller.move(id,position)
