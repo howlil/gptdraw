@@ -318,3 +318,12 @@ ol.g-block-list {list-style:decimal;}
  .g-inspect-column + .g-inspect-column {border-left:0;border-top:1px solid var(--g-border);}
  .g-inspect-column {padding:18px 16px;}
 }
+
+.g-branch-node {gap:0!important;padding:8px!important;min-height:90px!important;cursor:default!important;}
+.g-branch-open{display:flex;flex-direction:column;gap:5px;text-align:left;
+  padding:5px 7px;width:100%;border:0;background:transparent;color:var(--g-text);}
+.g-branch-open:hover{background:var(--g-panel);border-radius:6px;}
+.g-branch-compare{align-self:flex-start;margin:2px 0 0 7px;padding:4px 0;border:0;
+  background:transparent;color:var(--g-text);font-size:11px;text-decoration:underline;
+  text-underline-offset:2px;}
+.g-branch-compare:hover{opacity:.65;}
