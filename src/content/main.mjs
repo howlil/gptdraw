@@ -87,9 +87,18 @@ if (!document.getElementById(HOST_ID)) {
     onConfirmBranch:()=>controller.confirmPending(),
     onDismissBranch:()=>controller.dismissPending(),
     onOpenConversation:id=>{
-      // Route IDs are obtained from native URLs or validated branch metadata.
+      // Prefer ChatGPT-owned sidebar navigation to preserve the content-script
+      // session (including volatile branch preview cache). Full navigation is
+      // the fallback only when the native link is not currently in the DOM.
       if(!/^[A-Za-z0-9_-]+$/.test(id))return;
-      window.location.assign('/c/'+encodeURIComponent(id));
+      const link=[...document.querySelectorAll('a[href]')].find(anchor=>{
+        try{
+          const target=new URL(anchor.href,location.href);
+          return target.origin===location.origin && target.pathname.endsWith('/c/'+id);
+        }catch{return false;}
+      });
+      if(link)link.click();
+      else window.location.assign('/c/'+encodeURIComponent(id));
     },
     onRefresh:()=>controller.refresh(),
     onMove:(id,position)=>controller.move(id,position)
