@@ -1,7 +1,7 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
 
-export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove }) {
+export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart }) {
   const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
   const header=document.createElement('header'); header.className='g-topbar';
   const branding=document.createElement('div'); branding.className='g-brand';
@@ -18,14 +18,8 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   compose.append(document.createTextNode(' Compose in ChatGPT'));
   compose.addEventListener('click',onCompose); tools.append(compose,control('Close canvas','close',onClose));
   header.append(branding,tools);wrapper.append(header);
-  const canvas=createGraphCanvas({onSource,onMove,onEmpty:empty=>emptyState.hidden=!empty});
+  const canvas=createGraphCanvas({onSource,onMove,onStart});
   wrapper.append(canvas.element);
-  const emptyState=document.createElement('div');emptyState.className='g-empty';
-  emptyState.innerHTML='<strong>No conversation detected</strong><p>Open a conversation in ChatGPT and send a message. gptdraw mirrors only what is visible on the page.</p>';
-  const openNative=document.createElement('button');
-  openNative.className='g-primary-control';openNative.type='button';
-  openNative.textContent='Back to ChatGPT';openNative.addEventListener('click',onClose);
-  emptyState.append(openNative);wrapper.append(emptyState);
   const footer=document.createElement('footer');footer.className='g-footer';
   footer.innerHTML='<span>Move cards by dragging their header · Ctrl/⌘ + scroll to zoom</span><span>ChatGPT owns responses · Layout stored locally</span>';
   wrapper.append(footer);
