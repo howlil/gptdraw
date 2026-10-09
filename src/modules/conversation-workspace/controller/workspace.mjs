@@ -1,14 +1,16 @@
 import { pairMessages, routeKey, safePoint } from '../core/graph.mjs';
+import { mergeVisibleMessages } from '../core/history.mjs';
 
 // Single owner: native conversation is truth; this controller only projects
 // visible DOM turns and persists extension-owned layout metadata.
 export function createWorkspaceController({ observe, layoutStorage, onUpdate, pathname = () => location.pathname }) {
   let route = routeKey(pathname());
   let messages = [], turns = [], positions = {};
+  let history = {status:'idle',steps:0};
   let running = false, storeTimer = 0, generation = 0;
   let observer = null;
   let messageIndex = new Map(), turnIndex = new Map();
-  const notify = change => onUpdate({ route, turns, positions }, change);
+  const notify = change => onUpdate({ route, turns, positions, history }, change);
   const refresh = () => {
     turns = pairMessages(messages);
     messageIndex = new Map(messages.map((m,i) => [m.id,i]));
@@ -25,6 +27,7 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
     positions = {};
     messages = [];
     turns = [];
+    history={status:'idle',steps:0};
     messageIndex.clear();turnIndex.clear();
     notify({ type:'route' });
     try {
@@ -36,7 +39,13 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
     }
   }
   const callbacks = {
-    onSnapshot(items) { messages = items; refresh(); },
+    onSnapshot(items) {
+      messages = mergeVisibleMessages(messages,items,history.status==='loading');
+      refresh();
+    },
+    onHistory(status) {
+      history={...status};notify({type:'history'});
+    },
     onPatch(item) {
       const i = messageIndex.get(item.id);
       if (i === undefined) { observer?.refresh(); return; }
@@ -67,7 +76,7 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
     },
     stop() { running = false; observer?.stop(); observer = null; clearTimeout(storeTimer); },
     getSource(id) { return observer?.getElement(id) || null; },
-    refresh() { observer?.refresh(); },
+    refresh() { observer?.refresh();observer?.loadEarlier?.(); },
     move(id, candidate) {
       const point = safePoint(candidate);
       if (!point || !turns.some(turn => turn.id === id)) return;
@@ -78,6 +87,6 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
       clearTimeout(storeTimer);
       await layoutStorage.write(route, positions);
     },
-    snapshot() { return { route, turns, positions }; }
+    snapshot() { return { route, turns, positions, history }; }
   };
 }
