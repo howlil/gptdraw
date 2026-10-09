@@ -110,19 +110,19 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     }
     queue();
   };
-  const routeListener = () => connect();
+  const routeListener = () => { needsRescan = true; connect(); };
   return {
     start() {
       if (mounted) return;
       mounted = true;
-      connect();
+      needsRescan = true; connect();
       document.defaultView?.addEventListener('popstate', routeListener);
       // Observe only direct body changes for SPA remounts; no page-wide polling.
       const bodyObserver = new MutationObserver(connect);
       bodyObserver.observe(document.body, { childList: true });
       this.bodyObserver = bodyObserver;
     },
-    refresh: connect,
+    refresh() { needsRescan = true; connect(); },
     getElement(id) { return nodes.get(id)?.element || null; },
     stop() {
       mounted = false;
@@ -130,6 +130,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       this.bodyObserver?.disconnect();
       document.defaultView?.removeEventListener('popstate', routeListener);
       nodes.clear();
+      entries=[];root=null;observer=null;pendingIds.clear();needsRescan=true;
     }
   };
 }
