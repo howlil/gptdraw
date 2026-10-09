@@ -256,3 +256,21 @@
 .g-branch-node:hover {border-style:solid;box-shadow:0 6px 18px rgba(0,0,0,.05);}
 .g-text-action:disabled {opacity:.4;cursor:wait;}
 .g-node-footer {flex-wrap:wrap;gap:10px;}
+
+/* Safe rich assistant content */
+.g-inline-link {text-decoration:underline;text-underline-offset:2px;color:var(--g-text);}
+.g-inline-link:hover {opacity:.7;}
+.g-block-list {margin:4px 0 12px;padding-left:24px;list-style:disc;}
+ol.g-block-list {list-style:decimal;}
+.g-block-list li {white-space:pre-wrap;margin-bottom:5px;}
+.g-block-table {overflow:hidden;padding:0;}
+.g-table-scroll {max-width:100%;overflow-x:auto;}
+.g-table-scroll table {width:100%;border-collapse:collapse;white-space:nowrap;font:12px/19px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui;}
+.g-table-scroll th,.g-table-scroll td {text-align:left;padding:8px 10px;border-bottom:1px solid var(--g-border);}
+.g-table-scroll th {background:var(--g-panel);font-weight:600;}
+.g-block-code {white-space:normal;padding:0;overflow:hidden;}
+.g-code-header {display:flex;justify-content:space-between;align-items:center;
+  padding:5px 9px;border-bottom:1px solid var(--g-border);font:11px/16px ui-monospace,Consolas,monospace;color:var(--g-muted);}
+.g-code-header button {font-size:11px!important;}
+.g-block-code pre {margin:0;padding:10px;overflow-x:auto;max-width:100%;white-space:pre;}
+.g-block-code pre code {font:11px/18px ui-monospace,Consolas,monospace;}
