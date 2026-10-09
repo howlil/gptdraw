@@ -10,12 +10,23 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let messages = [], turns = [], positions = {};
   let history = {status:'idle',steps:0};
   let branches=[],pendingBranch=null,branchError=null,bookmarks=[];
+  const volatilePreviews=new Map(); // Up to eight loaded conversations, never Chrome Storage.
   let running = false, storeTimer = 0, generation = 0;
   let observer = null;
   let unsubscribeBranches=()=>{};
   let messageIndex = new Map(), turnIndex = new Map();
-  const notify = change => onUpdate({ route, turns, positions, history, bookmarks, branches, pendingBranch,
+  const notify = change => onUpdate({ route, turns, positions, history, bookmarks,
+    previews:Object.fromEntries(volatilePreviews), branches, pendingBranch,
     branchError, relations:branchRelations(branches,conversationId(route)) }, change);
+  const cacheLatest=()=>{
+    const key=conversationId(route);
+    const turn=turns[turns.length-1];
+    if(!key || !turn || !turn.answer)return;
+    // Keep a bounded display snapshot that originated from the actual DOM.
+    if(volatilePreviews.has(key))volatilePreviews.delete(key);
+    volatilePreviews.set(key,turn);
+    while(volatilePreviews.size>8)volatilePreviews.delete(volatilePreviews.keys().next().value);
+  };
   const refresh = () => {
     turns = pairMessages(messages);
     messageIndex = new Map(messages.map((m,i) => [m.id,i]));
@@ -24,7 +35,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       turnIndex.set(turn.userId,i);
       if (turn.assistantId) turnIndex.set(turn.assistantId,i);
     });
-    notify({ type:'snapshot' });
+    cacheLatest();notify({ type:'snapshot' });
   };
   async function loadRoute(path) {
     route = routeKey(path);
@@ -83,6 +94,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
         : { ...original, answer:item.text, answerBlocks:item.blocks || [], pending:!item.text.trim() };
       if (original.prompt === updated.prompt && original.answer === updated.answer) return;
       turns[index] = updated;
+      if(index===turns.length-1)cacheLatest();
       notify({ type:'patch', turnId:updated.id });
     },
     onRoute(path) { loadRoute(path); }
@@ -174,7 +186,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       clearTimeout(storeTimer);
       await layoutStorage.write(route, positions);
     },
-    snapshot() { return {route,turns,positions,history,bookmarks,branches,pendingBranch,branchError,
+    snapshot() { return {route,turns,positions,history,bookmarks,
+      previews:Object.fromEntries(volatilePreviews),branches,pendingBranch,branchError,
       relations:branchRelations(branches,conversationId(route))}; }
   };
 }
