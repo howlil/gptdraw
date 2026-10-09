@@ -1,79 +1,97 @@
-// Progressive, cancellable DOM-only history loading for existing ChatGPT chats.
-// Chrome owns no hidden history APIs. The native scroller is restored afterwards.
-const TURN_MARKER = '[data-testid^="conversation-turn-"],[data-turn-id],[data-turn-key],[data-message-author-role]';
-const SCROLL_SELECTORS = '[data-testid="conversation-scroll-container"],[data-testid="conversation-panel"],[class*="overflow-y-auto"],[class*="overflow-auto"],[role="log"]';
-
+// Progressive, cancellable reading of *native* ChatGPT scrolling history.
+// No undocumented API calls. Never scroll navigation sidebar.
+const TURN_MARKER='[data-testid^="conversation-turn-"],[data-turn-id],[data-turn-key],[data-message-author-role]';
+const SCROLL_SELECTORS='[data-testid="conversation-scroll-container"],[data-testid="conversation-panel"],[class*="overflow-y-auto"],[class*="overflow-auto"],[role="log"]';
 function scrollable(node, view) {
-  if (!node || typeof node.scrollTop !== 'number') return false;
-  if (!(node.scrollHeight > node.clientHeight + 48 && node.clientHeight > 100)) return false;
-  const overflow = view?.getComputedStyle?.(node)?.overflowY || '';
-  return /auto|scroll|overlay/.test(overflow) || node.scrollTop > 0;
+  if(!node || typeof node.scrollTop!=='number')return false;
+  if(!(node.scrollHeight>node.clientHeight+48 && node.clientHeight>100))return false;
+  const overflow=view?.getComputedStyle?.(node)?.overflowY||'';
+  return /auto|scroll|overlay/.test(overflow)||node.scrollTop>0;
 }
 export function findHistoryScroller(doc, main) {
-  if (!main) return null;
-  const view = doc.defaultView;
-  const turn = main.querySelector?.(TURN_MARKER);
-  // Prefer scroll ancestors of real messages, not sidebar/history navigation.
-  let node = turn;
-  while (node && node !== doc.body) {
-    if (scrollable(node, view)) return node;
-    node = node.parentElement;
+  if(!main)return null;
+  const view=doc.defaultView;
+  let node=main.querySelector?.(TURN_MARKER);
+  while(node && node!==doc.body){
+    if(scrollable(node,view))return node;
+    node=node.parentElement;
   }
-  const candidates = main.querySelectorAll?.(SCROLL_SELECTORS) || [];
-  for (const candidate of candidates) {
-    if (scrollable(candidate, view)) return candidate;
+  for(const candidate of main.querySelectorAll?.(SCROLL_SELECTORS)||[]){
+    if(scrollable(candidate,view))return candidate;
   }
-  node = main;
-  while (node && node !== doc.body) {
-    if (scrollable(node, view)) return node;
-    node = node.parentElement;
+  node=main;
+  while(node && node!==doc.body){
+    if(scrollable(node,view))return node;
+    node=node.parentElement;
   }
-  return null; // Never auto-scroll a sidebar, window, or unrelated page container.
+  // Some ChatGPT layouts use the document's own scroller while main contains
+  // all conversation turns. This must be the actual document scroller, not a
+  // sidebar or any arbitrary element outside main.
+  const page=doc.scrollingElement;
+  if(main.querySelector?.(TURN_MARKER) && scrollable(page,view))return page;
+  return null;
 }
-
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export async function backfillHistory({
-  document, root, onScan, onStatus = () => {}, signal,
-  findScroller = findHistoryScroller, wait = delay,
-  maxSteps = 180, idleLimit = 9, waitMs = 170
+  document,root,onScan,onStatus=()=>{},signal,
+  findScroller=findHistoryScroller,wait=delay,
+  maxSteps=300,idleLimit=12,waitMs=100
 }) {
-  const scroller = findScroller(document, root);
-  if (!scroller) {
-    onStatus({ status:'unavailable', steps:0 });
-    return 'unavailable';
-  }
-  const bottomGap = Math.max(0,scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
-  let lastHead = null, lastHeight = -1, lastCount = -1, idle = 0, steps = 0;
-  let outcome = 'limited';
-  onStatus({ status:'loading', steps:0 });
+  const scroller=findScroller(document,root);
+  if(!scroller){onStatus({status:'unavailable',steps:0});return 'unavailable';}
+  const bottomGap=Math.max(0,scroller.scrollHeight-scroller.clientHeight-scroller.scrollTop);
+  let outcome='limited',steps=0,lastCount=-1,lastHeight=-1,lastHead=null,stable=0;
+  let count=0;
+  const abort=()=>signal?.aborted||scroller.isConnected===false;
+  onStatus({status:'loading',steps:0,count:0});
   try {
-    for (steps=0;steps<maxSteps;steps++) {
-      if (signal?.aborted) { outcome='cancelled';break; }
-      if (scroller.isConnected === false) { outcome='unavailable';break; }
-      // Jump to the earliest currently loaded region; ChatGPT can prepend
-      // another batch in response. Yield between attempts to avoid UI jank.
-      scroller.scrollTop = 0;
+    // Phase 1: page toward the earliest rendered turn. One large jump often
+    // misses virtualization sentinels, so cross the scrollport in increments.
+    for(;steps<maxSteps;steps++){
+      if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+      const before=scroller.scrollTop;
+      const step=Math.max(220,Math.min(scroller.clientHeight*.82,900));
+      scroller.scrollTop=Math.max(0,before-step);
       await wait(waitMs);
-      if (signal?.aborted) { outcome='cancelled';break; }
-      const info = await onScan();
-      const height = scroller.scrollHeight;
-      const head = info?.firstId ?? null;
-      const count = info?.count ?? 0;
-      const atTop = scroller.scrollTop <= 2;
-      const stable = atTop && head === lastHead
-        && height === lastHeight && count === lastCount;
-      idle = stable ? idle + 1 : 0;
+      if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+      const current=await onScan();
+      count=Math.max(count,current?.count||0);
+      const head=current?.firstId||null,height=scroller.scrollHeight;
+      const atTop=scroller.scrollTop<=2;
+      const unchanged=atTop && lastHead===head && lastHeight===height && lastCount===count;
+      stable=unchanged?stable+1:0;
       lastHead=head;lastHeight=height;lastCount=count;
-      if(steps % 4 === 0 || !stable)onStatus({status:'loading',steps:steps+1,count});
-      if(idle >= idleLimit) {outcome='complete';break;}
+      if(steps%4===0||!unchanged)onStatus({status:'loading',steps:steps+1,count});
+      // Remain at top for multiple delayed loading rounds; stability is not
+      // proof of complete account history, only the currently reachable DOM.
+      if(stable>=idleLimit){outcome='reached-top';steps++;break;}
+    }
+    if(!abort() && outcome!=='unavailable'){
+      // Phase 2: traverse down through the now expanded document as well.
+      // Virtualized pages can unmount/reuse earlier rows; scan each viewport
+      // and accumulate IDs in the in-memory controller.
+      stable=0;
+      for(;steps<maxSteps;steps++){
+        if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+        const max=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
+        const before=scroller.scrollTop;
+        scroller.scrollTop=Math.min(max,before+Math.max(220,Math.min(scroller.clientHeight*.82,900)));
+        await wait(waitMs);
+        if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+        const info=await onScan();
+        count=Math.max(count,info?.count||0);
+        const end=scroller.scrollTop>=Math.max(0,scroller.scrollHeight-scroller.clientHeight-2);
+        stable=end?stable+1:0;
+        if(steps%4===0)onStatus({status:'loading',steps:steps+1,count});
+        if(stable>=3){outcome='reached-top';steps++;break;}
+      }
     }
     if(signal?.aborted)outcome='cancelled';
-    onStatus({status:outcome,steps:steps+1,count:Math.max(0,lastCount)});
+    // "reached-top" means the *DOM's* loadable top, not full server history.
+    onStatus({status:outcome,steps,count});
     return outcome;
   } finally {
-    // Preserve the user's previous distance from the end, even if older
-    // messages were prepended. Never restore after cancellation/route change.
-    if (!signal?.aborted && scroller.isConnected !== false)
-      scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight - bottomGap);
+    if(!signal?.aborted && scroller.isConnected!==false)
+      scroller.scrollTop=Math.max(0,scroller.scrollHeight-scroller.clientHeight-bottomGap);
   }
 }
