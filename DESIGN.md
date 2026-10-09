@@ -14,8 +14,8 @@ One graph card = one user turn + its following assistant response (which may sti
 - **Fonts:** system UI (Apple SF Pro / Windows Segoe UI), mono SF Mono / Consolas / Liberation Mono / Menlo. No bundled fonts.
 - **Text sizes/line height:** 12/16 meta, 14/20 UI, 16/24 body, 18/24 title, 20/28 large title, 28/34 page title, 36/40 display. Weights 400/500/600.
 - **Spacing scale:** 4/8/12/16/20/24/32px. No arbitrary page rhythm values.
-- **Colors:** background `#FCFCF8`; white card; ink `#252525`; gray `#737984`; neutral border `#E5E7EB`; accent `#9BB1FF`; user bubble `#EEF2FF`. Dark semantic equivalents, no flashing theme switch.
-- **Controls:** compact rounded pills, real SVG/Lucide-style icons with accessible names; floating canvas controls use restrained shadow.
+- **Colors — black/white only:** light background `#FAFAFA`, white card `#FFFFFF`, ink/accent `#171717`, muted `#737373`, border `#E5E5E5`, user bubble `#F0F0F0`. Dark background `#0A0A0A`, surface `#151515`, ink/accent `#FAFAFA`, border `#303030`, user bubble `#252525`. No cobalt/lavender/purple/blue styling. Follow ChatGPT's explicit light/dark class if available, else OS preference.
+- **Controls:** compact rounded pills, real SVG/Lucide-style icons with accessible names; **toolbar extension action is the sole entry trigger**—no floating launcher/button inside ChatGPT. Canvas zoom controls remain visible *inside* the main area.
 
 The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CSS v4 at build time**, using reusable component CSS and a Shadow DOM-specific variable scope. Tailwind does not ship as a runtime compiler. The host ChatGPT CSS must not style extension UI, and extension CSS must not style host content.
 
@@ -38,6 +38,7 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Return-to-source closes the overlay and scrolls the native ChatGPT message into view.
 - Overview zoom is for topology. At unreadable zoom, Focus is the preferred reading surface.
 - Persist user-moved card positions by ChatGPT conversation route. Do not persist answer/prompt text or call layout data a conversation backup.
+- **Historic chat backfill:** after opening an existing conversation, progressively scroll its *native conversation scrollport* toward the earliest loadable turn. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
 
 ## Composer behavior
 
@@ -54,7 +55,8 @@ Any adoption of upstream Beautiful UI source must preserve license, document dep
 ## Interaction/accessibility/performance acceptance
 
 - A current ChatGPT conversation opens as connected prompt+answer cards without another login or API key. `data-turn` on conversation wrappers must be checked before fallback role descendants; unsupported variants must be reported as undetected rather than inventing text.
-- Streaming updates update only the affected response node; no page-wide DOM scan for every token and no synthetic word-by-word animation.
+- Streaming updates update only the affected response node; no page-wide DOM scan for every token and no synthetic word-by-word animation. The full graph is not reconciled when a backfill scan finds no new text.
+- **Motion:** subtle ~140–150ms entrance, hover and focus transitions. No animated CSS transforms while dragging, zooming, or streaming. Respect `prefers-reduced-motion`.
 - Close/reopen restores a live native ChatGPT session and saved card positions; no message capture to extension storage.
 - Unsupported UI states are omitted, not represented as working controls.
 - Keyboard Escape closes; source/compose buttons have real native actions; explicit Zoom/Fit controls support non-pointer navigation.

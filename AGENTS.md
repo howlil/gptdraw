@@ -17,10 +17,11 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 **gptdraw is a Chrome MV3 extension that projects the ChatGPT conversation already open in the browser into a branching/spatial canvas.** ChatGPT owns the conversation, model, user session, native composer, streaming and any native branching. gptdraw owns its overlay, DOM adapter, graph projection, navigation and local layout metadata.
 
 - **No OpenAI API key, model gateway, ChatGPT undocumented API, session scraping or account login recreation.**
+- The **only activation entry** is Chrome's extension toolbar icon (`chrome.action`). Never add a floating Graph launcher to chatgpt.com.
 - DOM access happens in an **isolated content script**, observing visible turns. **Keep native sidebar/navigation fully usable**: draw the canvas only inside the computed ChatGPT `main` bounding box. Never hide/move/delete ChatGPT's React-owned messages or sidebar. User-initiated Start Card submission may populate the visible native ChatGPT composer and click its real Send control; do not call hidden APIs.
-- Model messages are not copied into extension storage. Layout only (route-specific positions) is stored locally.
+- Model messages are not copied into extension storage. Layout only (route-specific positions) is stored locally. Older turns may be held in *volatile memory* during progressive native scroll backfill; cancel backfill on route change/close and restore the native user's scroll.
 - An action is enabled only if its real native ChatGPT DOM target exists. Empty/new chats show exactly **one functional Start Card** instead of a full-screen empty modal. Native send fallback must preserve the unsent draft. No fake Fork, attachment, model selection, sources or thinking.
-- Canvas preserves the approved Dialogue design: right user bubble / left assistant content / no avatars. One graph card equals one user prompt and the following assistant response.
+- Canvas preserves the approved Dialogue design in **monochrome black/white light/dark**: right user bubble / left assistant content / no avatars. One graph card equals one user prompt and the following assistant response.
 
 ## Routing
 
@@ -65,7 +66,7 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 | --- | --- |
 | Product copy, tokens, docs | Inspect changed surface and token parity |
 | Turn pairing, stable IDs, source navigation | Unit/fixture tests + DOM smoke test |
-| DOM selectors, streaming | Browser fixture + MutationObserver batching, no full scan per token |
+| DOM selectors, streaming, historical chat backfill | Browser fixture + MutationObserver batching, progressive earliest-message loader, abort + scroll restoration, no full scan per token |
 | Graph drag/pan/zoom, route layout | Interaction and persistence test + manual Chrome visual review |
 | Chrome permissions, injection, security | Manifest/Shadow DOM/host boundary review |
 | Build scripts/dependencies | Reproducible install, tests, production bundle and syntax checks |
