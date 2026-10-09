@@ -1,171 +1,64 @@
-# DESIGN.md — gptdraw Design Contract
+# DESIGN.md — gptdraw design contract
 
-Status: **canonical UI/design-system contract**. Read with [.agents/product-design.md](.agents/product-design.md) for research and interaction decisions. Approved UI rules are binding; measurements and untested behavior remain hypotheses.
+## Product identity
 
-## 1. Product north star
+**ChatGPT remains the AI runtime. gptdraw is its spatial interface.** The design must remain an extension overlay over the native website, with no invented provider status or hidden conversation context.
 
-**Chat first. Graph second.** gptdraw is a spatial conversation workspace, not a flowchart populated with chat widgets. People must be able to: ask → read → select an answer passage → fork → compare paths → return to source.
+User journey: **open existing ChatGPT conversation → toggle Graph → read one prompt+answer card → explore connected turns → return to the exact native source → continue composing in ChatGPT**.
 
-**One card = one user turn and one assistant response**. A follow-up is a **new connected card**, never a second message appended inside its parent card.
+One graph card = one user turn + its following assistant response (which may still be empty/streaming). The initial implementation shows a **sequential conversation spine**, not true fork lineage. Fork is future work requiring a verified native action.
 
-Principles:
-- Content density over decorative metadata; remove redundant headings, explanatory badges, “response ready”, “original prompt”, generic info panels and unnecessary card chrome.
-- Calm, compact, minimal, tactile only where it improves interaction. White/off-white neutral surfaces, subtle boundaries and optional subtle glass **for floating overlays**, not body content.
-- Use **real icons** (consistent Lucide or equivalent SVG set), not emoji, fake glyphs or ornamental avatars.
-- Interaction hierarchy: reading is primary; card actions are secondary; spatial topology is tertiary.
-- Progressive disclosure: show only controls with a reason to exist for this state.
-- All new designs: **interactive preview first**, inspect at desktop and narrow widths; screenshots alone do not validate interaction.
+## Visual system
 
-## 2. Typography and spacing tokens
+- **Tone:** clean, calm, compact, neutral-first, technically credible. Avoid glass saturation, badges for static metadata, decorative dashboard chrome and animation-per-token.
+- **Fonts:** system UI (Apple SF Pro / Windows Segoe UI), mono SF Mono / Consolas / Liberation Mono / Menlo. No bundled fonts.
+- **Text sizes/line height:** 12/16 meta, 14/20 UI, 16/24 body, 18/24 title, 20/28 large title, 28/34 page title, 36/40 display. Weights 400/500/600.
+- **Spacing scale:** 4/8/12/16/20/24/32px. No arbitrary page rhythm values.
+- **Colors:** background `#FCFCF8`; white card; ink `#252525`; gray `#737984`; neutral border `#E5E7EB`; accent `#9BB1FF`; user bubble `#EEF2FF`. Dark semantic equivalents, no flashing theme switch.
+- **Controls:** compact rounded pills, real SVG/Lucide-style icons with accessible names; floating canvas controls use restrained shadow.
 
-Fonts:
-- Sans: system UI; macOS/iOS SF Pro, Windows Segoe UI, fallback system sans-serif.
-- Mono: SF Mono when available; Consolas / Liberation Mono / Menlo fallback.
-- No font files committed solely to enforce a platform font.
+The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CSS v4 at build time**, using reusable component CSS and a Shadow DOM-specific variable scope. Tailwind does not ship as a runtime compiler. The host ChatGPT CSS must not style extension UI, and extension CSS must not style host content.
 
-| Role | Font size / line-height (px) | Weight |
-| --- | --- | --- |
-| Metadata | 12 / 16 | 400–500 |
-| Control / UI | 14 / 20 | 400–500 |
-| Body | 16 / 24 | 400 |
-| Small title | 18 / 24 | 600 |
-| Large title | 20 / 28 | 600 |
-| Page title | 28 / 34 | 600 |
-| Display | 36 / 40 | 600 |
+## Chat Card (approved Dialogue direction)
 
-Spacing scale: **4, 8, 12, 16, 20, 24, 32px**. Favor a 4px rhythm and avoid arbitrary gaps. Prototype cards may use 13–14px for dense samples; production reading text at focused scale should normally be 14–16px **before zoom**, and must remain comfortably readable after zoom.
+- **User prompt on right**, softly tinted rounded bubble.
+- **Assistant answer on left**, not an extra bubble, no user/AI avatars.
+- Header carries short turn identity and native source/focus actions, not duplicate explanatory status.
+- Content stays text-first; no fake sources, thinking steps, model actions or attachment indicators.
+- Pending assistant turns show an honest waiting state.
+- Stable DOM node identity: never replace the entire card on every streaming token.
+- Content formatting: first slice projects **plain text only** from safe `textContent`. Rich code/Markdown/citations require audited native DOM extraction and separate supported rendering, not unsafe `innerHTML`.
 
-## 3. Color and material contract
+## Conversation canvas
 
-Visual intent is howlil-style **neutral-first / lavender-blue interaction accent**, not saturated full-card blue.
+- Nodes represent consecutive visible turn pairs in one ChatGPT conversation.
+- Edges in the first slice are a **sequential reading path**, not confirmed native branch relationships.
+- Pan the empty canvas; move nodes by dragging the **header only**. Text selection, links, buttons and internal scroll do not initiate canvas dragging.
+- Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; Fit shows detected cards; Focus centers a card for reading.
+- Return-to-source closes the overlay and scrolls the native ChatGPT message into view.
+- Overview zoom is for topology. At unreadable zoom, Focus is the preferred reading surface.
+- Persist user-moved card positions by ChatGPT conversation route. Do not persist answer/prompt text or call layout data a conversation backup.
 
-Suggested initial **design tokens** (starting palette, verify actual contrast in light/dark modes):
+## Composer behavior
 
-| Token | Light | Dark | Usage |
-| --- | --- | --- | --- |
-| `--bg` | `#FCFCF8` | `#0C0D10` | Workspace/page |
-| `--surface` | `#FFFFFF` | `#17191D` | Chat card |
-| `--surface-subtle` | `#F7F8FA` | `#22252A` | Input/hover/context |
-| `--text` | `#252525` | `#F4F5F7` | Primary text |
-| `--text-muted` | `#6B7079` | `#AAB0BA` | Secondary |
-| `--border` | `#E5E7EB` | `#343840` | Subtle separators |
-| `--accent` | `#9BB1FF` | `#9BB1FF` | Focus, selection, branch path |
-| `--accent-soft` | `#EEF2FF` | `#242D45` | User prompt bubble |
+The **native ChatGPT composer is the currently implemented input**. The extension has a real **Compose in ChatGPT** action that closes its overlay and focuses the website's native composer when discoverable.
 
-Rules:
-- Accent is **meaningful**, not background decoration. A primary action may use it, but check button text contrast; **do not use white text on light lavender without verifying contrast**. Prefer dark label on lavender or a stronger accessible action color.
-- User message: **right-aligned softly tinted bubble**; AI response: **left-aligned unboxed text**.
-- No user/assistant avatar or status emoji. If an icon is necessary for a real affordance, keep its stroke/size consistent.
-- Light/dark use the same semantic tokens. Avoid theme flicker and implicit OS-theme overrides after a user preference is chosen.
-- Shadows extremely restrained (prefer border); backdrop blur/glass reserved for hovering popovers/floating canvas controls.
+The approved future **adaptive gptdraw composer** (compact one-line pill → textarea+bottom toolbar when multiline/attachment) is a design direction, **not part of slice 01**. Only introduce it once a supported/verified bridge to the native ChatGPT composer exists; otherwise it would fake submission. No native model picker, fake microphone or mock attachments.
 
-## 4. Chat card anatomy
+## Reusable components / Beautiful UI
 
-```text
-┌─────────  02  ·  Source link  ────────── [collapse] ┐
-│                                     User prompt     │
-│                         [soft tinted right bubble]  │
-│                                                      │
-│ AI response (left, no avatar, no forced bubble)      │
-│ [Optional thinking summary during/after streaming]  │
-│ Paragraphs · headings · lists · code · tables        │
-│ [Optional citations, tool results, attachments]      │
-│                                                      │
-│ [Copy]   [Retry if valid]   [Fork]   [Continue]      │
-│                                                      │
-│ (+)  Ask a follow-up ...      [mode]  [Send]          │
-└──────────────────────────────────────────────────────┘
-```
+Use **Beautiful UI** (https://www.beautifului.dev/) for interaction references and selective source reuse when a real component is required, especially Chat, Prompt Bar, Streaming Text and Selection Actions. Source examples are React/Next.js/Tailwind and may include demo data and animations; **do not transplant those into the low-level content script as fake components**. Current reusable primitives are the project-owned SVG icon/control API under `src/components/ui/` and the Dialogue card/canvas compositions.
 
-Card header: keep minimal sequence number, parent/source navigation when present, collapse/focus. No redundant “root”, “AI response ready”, “source preserved” explanations.
+Any adoption of upstream Beautiful UI source must preserve license, document dependencies, remove demo content and animation timing, and be explicitly validated for extension performance. Do not claim the original upstream React components are installed unless they actually are.
 
-**States**:
-- Overview/collapsed: question and short answer excerpt with connected edges. **No composer**.
-- Default: readable question + AI answer; minimal footer, composer only on active card.
-- Focused: increased width, typography and reading comfort.
-- Expanded: long-form code/table/attachments with horizontal overflow handled within content, not the whole page.
-- Pending/streaming/error/retry: visible, accurate system state; avoid fabricated thinking summaries.
+## Interaction/accessibility/performance acceptance
 
-Width hypotheses to validate, not immutable constants:
-- Collapsed ~280px.
-- Canvas default ~360–420px.
-- Focused ~520–560px.
-- Long-form up to ~720px or side reading panel.
+- A current ChatGPT conversation opens as connected prompt+answer cards without another login or API key.
+- Streaming updates update only the affected response node; no page-wide DOM scan for every token and no synthetic word-by-word animation.
+- Close/reopen restores a live native ChatGPT session and saved card positions; no message capture to extension storage.
+- Unsupported UI states are omitted, not represented as working controls.
+- Keyboard Escape closes; source/compose buttons have real native actions; explicit Zoom/Fit controls support non-pointer navigation.
+- Test browser widths 320/360/768/desktop, light/dark, long prompt and response, 3/50+ turns, selection vs drag, reduced motion and SPA route transitions.
+- Prefer `textContent` over injecting raw ChatGPT HTML. Never move native React-owned messages or modify hidden app state.
 
-**If zoom makes card text too small, switch to overview display**, don't force users to read a shrunk 12px body font. Canvas is for scanning; focused state is for reading.
-
-## 5. AI-native content renderer
-
-Render content by structured response blocks, not by assuming one concatenated string:
-
-- Text/Markdown (headings, links, ordered/unordered lists, inline code).
-- Code with syntax coloring, wrap or isolated horizontal scroll, and real Copy.
-- Tables, images/files, citations with actionable URLs, relevant tool results.
-- Thinking **only if the integration provides a displayable summary/status**. Never invent private reasoning or fabricate tool output.
-- Sources only when there are actual sources. Retry only on valid retriable errors; show errors clearly.
-- Rich output can be isolated from the conversation graph UI without changing the parent-child model.
-
-Do not show decorative components merely because Beautiful UI / AI Elements offers them.
-
-## 6. Adaptive composer: explicit behavior
-
-Default = **compact one-line pill** modeled on the approved screenshot:
-- Left: **+** attachment/context menu (only functioning options).
-- Middle: text input.
-- Right: actual model/mode picker if connected, microphone only if supported, Send arrow.
-- Use a real textarea for composition; Enter to submit only if chosen by UX, Shift+Enter newline, Ctrl/Cmd+Enter shortcut. Avoid intercepting IME composition.
-
-Expand **when content wraps, contains explicit newline, or includes an attachment**; do not rely only on a hardcoded character threshold. Expanded state stacks attachment previews and textarea above a pinned bottom toolbar.
-- Attachment thumbnails with remove control; accessible file names, size/type validation.
-- Empty Send is disabled; failures keep the draft and show actionable error; sending must not silently drop files.
-- Preserve per-node drafts during pan, zoom, card selection, collapse and re-render.
-- A collapsed node has no active composer, and only one composer is prominent at a time.
-- If a control is a stub (voice, file upload, model choice), remove/disable it with an explicit reason rather than faking success.
-
-## 7. Branching UX and provenance
-
-**Continue**: new child card connected to current card, inheriting the ordered ancestor conversation path through the parent.
-
-**Fork response**: new child card, parent pointer, optional stable source block anchor.
-
-**Fork selected text**: selection toolbar with Fork (and optional Explain/Copy) after text selection. Store a **stable block ID**, exact selected quote and validated offsets/range if available, not merely an array index. Always display the source link so people can navigate to the parent and highlight the source.
-
-- A selection action must preserve the selection until the user performs it; re-rendering cannot lose its provenance.
-- The default fork **preserves complete ancestor lineage** while highlighting the selected source. Restricting context to the selection is an explicit different mode, not an accidental truncation.
-- Active lineage edges highlighted by accent. Other edges remain neutral.
-- Follow-up cards position near the source and do not overlap. Manual position overrides auto-layout.
-- Parent-child graph remains a **tree** in the first version. Multi-parent merge is deferred and requires a separate specification.
-
-## 8. Canvas interaction contract
-
-- Pan blank canvas, drag **card header only**; scroll/drag/select inside response, input and menus must never move the canvas.
-- Zoom centered on cursor/viewport; fit content, center selected card, search/outline with accurate navigation.
-- Keyboard and touch equivalents for actions that would otherwise require drag. Visible focus and escape/close affordances.
-- Overview vs focus must be intentional, not an accidental CSS zoom.
-- Zoom and node dragging cannot reset drafts, selection, response scroll, or stream state.
-- Dynamic source handles and paths update when nodes resize/collapse or sections stream in.
-- No arbitrary finite-canvas clipping: large workspaces should remain navigable and performant.
-- Avoid persistent per-paragraph Fork controls on every non-active card; show contextual affordance or selection toolbar to limit noise.
-
-## 9. Responsiveness and accessibility
-
-- Desktop graph can pan and spatially explore multiple card branches.
-- Narrow/mobile: prioritize **focused single-card reading and outline/list navigation**; graph remains optional or zoomed overview.
-- Support keyboard focus, logical tab order, aria-expanded, accessible labels, Escape close, touch targets ~40–44px and prefers-reduced-motion.
-- Selection/fork must work without mouse; allow a card-level Fork fallback.
-- Test: 320/360px, 768px, desktop; light/dark; short/long response; code and table; very long prompt, attachments, streaming/error; 3 vs 50+ nodes.
-
-## 10. Design review checklist
-
-1. Does each visible component help reading, branching, composing, or navigating?
-2. One node still equals one user prompt + assistant response?
-3. Correct right-user / left-assistant layout without decorative avatars?
-4. Composer compact until content truly requires expansion?
-5. Are branch anchor, parent context and source navigation unambiguous?
-6. Does selecting text / typing inside a card avoid canvas dragging?
-7. Readable at actual viewport scale? Keyboard + mobile + dark mode?
-8. Is model/tool/source state real rather than demo-fabricated?
-9. Were alternate layouts previewed **interactively** and inspected before implementation?
-10. Were screenshot comparisons and behavior tests performed against this contract?
-
-If a feature conflicts with this document, update the design decision explicitly before implementation; don't silently drift.
+If a design change alters product behavior, update this contract intentionally before shipping.

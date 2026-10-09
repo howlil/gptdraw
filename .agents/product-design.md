@@ -1,70 +1,48 @@
-# Product Design — gptdraw
+# Product design — gptdraw
 
-**Working documentation, not an installable skill.** Evidence from this chat's iterative designs and the uploaded interactive HTML prototype, October 2026. No real user study or connected model has been verified.
+Working project research/UX specification, not a skill installation. Canonical tokens and card rules live in root [DESIGN.md](../DESIGN.md).
 
-## Product goal / design graph
+## Corrected product definition (decided 2026-10-09)
 
-Chat is the primary job; graph is an exploration surface:
+gptdraw enhances the **currently open ChatGPT website** with a graph-based conversation view. It does **not** own inference, API keys, user sessions or model execution.
 
-    Ask → Read AI response → Select claim/paragraph → Fork
-      → New child card → Compare paths → Return to source
-    Continue → New child inheriting ancestor conversation
-    Canvas overview ↔ Focused readable chat card
+    ChatGPT page (existing prompts, assistant replies, native streaming)
+        → read-only DOM adapter (visible turn extraction)
+        → normalized prompt/answer pairs
+        → spatial canvas projection
+        → local layout state + jump back to native message
 
-**One card is one user turn (user prompt + AI response slot)**, never one node per message bubble.
+**One card = one user prompt + the following AI response.** The approved Dialogue card places the user bubble on the right and AI text on the left, without avatars.
 
-## Decisions from the conversation (approved)
+## Observed source and product caveats
 
-- The preferred card alternative is **Dialogue**, not Reader, Sectioned or Graph Compact.
-- User input appears as a **right-aligned softly tinted bubble**; AI answer as **left-aligned plain content**. **No avatars or bot/user icons.**
-- Composer initially **compact pill**; when text wraps/multiline or an attachment is present, input expands and controls move to the lower row, matching the user-supplied ChatGPT composer screenshots.
-- Fork from whole answer or a selected response passage; Continue starts a new connected child. A source link must lead back to the exact parent block/quote.
-- Canvas offers pan/zoom, card drag, collapse, selected path, search/outline; focus mode must make long-form reading comfortable.
-- Compact, calm, minimal, neutral-first, system UI, real Lucide-style SVG icons, restrained accent and smooth motion. Remove redundant headings, “response ready”, fake statuses and decorative information.
+- The earlier HTML prototype created fictional assistant answers, stored conversations in an in-memory JS graph and used section indexes as fork anchors. **It is a visual reference, not the runtime data source**.
+- Current extension uses rendered ChatGPT elements selected via `[data-testid^="conversation-turn-"]` and `[data-message-author-role]`, with content from known `.markdown`, `.prose` and `[data-testid="user-message"]` conventions. These selectors are **version-sensitive** and must be verified against live ChatGPT.
+- DOM snapshots do not necessarily include hidden messages, model context, tools, attachments or historical branches.
+- A sequential connector between visible turns is not a confirmed ChatGPT-native fork. Fork automation should not be displayed until the real branching path and source anchoring have been verified.
+- Native ChatGPT composer remains the actual send mechanism in first slice; extension can return focus to it but does not fake sending.
 
-**DESIGN.md owns actual typography/color/spacing/component rules. Do not duplicate its full token table here.**
+## User-job graph
 
-## Prototype audit — evidence and limitations
+**Now / first slice:** open conversation → click Graph → read source-derived turns and live text changes → pan/zoom/focus → open native message → return to ChatGPT. Reopen retains positions.
 
-**Observed in supplied HTML:**
-- Standalone vanilla-JS node array, local drafts, SVG edges and pointer canvas.
-- Child cards are created with simulated assistant output; AI provider is not connected.
-- Anchor uses a numerical response-section index; selection provenance can become stale when source response changes.
-- Model/mode selection only changes local UI. File picker stores file name, not uploaded/processed content.
-- Rebuilding card HTML through innerHTML and a fixed canvas size may disturb selection, focus, scroll and scaling.
+**Next:** verify native branch action and route changes → store parent/child conversation **metadata**, and show genuine fork edges with source provenance. Confirm behavior using live ChatGPT manual tests before claiming automatic branching.
 
-**Not implemented/verified:** real context inheritance, provider streaming, storage across refresh, actual attachment upload, real citations/thinking, responsive large-graph behavior or user usability results. These are risks to test, not already reproduced bug claims.
+**Later:** selected quote fork, richer native response rendering, adaptive composer bridge, search/outline, large-graph optimization and optional comparison modes, without ever recreating the AI provider.
 
-## Information/interaction hierarchy
+## UX research & design process
 
-1. Prompt and answer must be legible before controls/graph metadata.
-2. Thinking, sources, code, tables and tool results are conditional on real response content.
-3. Exactly one card has prominent composer; inactive/collapsed cards are compact.
-4. Selection actions are contextual; a persistent Fork per paragraph on every card creates visual noise.
-5. Overview scans structure, Focus reads/types. Do not present deeply zoomed-out text as legible.
-6. Explicitly show whether a fork uses inherited ancestor context, a selected source quote or an alternative restricted-context mode.
+1. Inspect current ChatGPT DOM and extension behavior. Label findings **Observed / Decided / Inferred / Unverified**.
+2. Map user task, current path and friction: entry → read → branch/explore → return.
+3. Review information hierarchy and interaction states, not only component aesthetics.
+4. Build interactive preview with **real** controls; no imaginary model/status. Favor selected Dialogue direction rather than gratuitous variants.
+5. Validate streaming, route navigation, selection conflicts, keyboard, touch, focus, light/dark, 320/360/768/desktop.
+6. Hand off exact behavior, affected owner, acceptance checks, evidence and limitations.
 
-## Product design working method
+## Questions still open
 
-1. **Inspect:** user job, current files, UI and failures.
-2. **Map:** journey + navigation / state graph, information hierarchy and friction.
-3. **Distinguish:** Decided / Observed / Inferred / Unverified; challenge assumptions.
-4. **Explore:** variants only when requested or a real trade-off is open.
-5. **Preview interactively:** working actions, real SVG icons, honest simulated states.
-6. **Validate:** small/large screen, light/dark, keyboard/touch, long answer, attachment/error, 3 vs 30+ cards.
-7. **Handoff:** exact behavior, affected states, user impact and observable acceptance tests, then coordinate engineering boundaries.
-
-## Initial acceptance scenarios
-
-- Select response text → Fork child → go back to the same original quote, even after refresh.
-- Continue branch B → only ancestor path to B is carried; unrelated sibling branch C excluded.
-- Compact input → multiline/attachment expanded → remove content → compact; draft survives switching cards.
-- Pan/drag never steals text selection, textarea typing or code scrolling.
-- Unknown provider/tool capability is disabled or omitted, never faked.
-- A 320–360px viewport can focus, read, compose and branch without clipped actions.
-
-## Open product choices
-
-**Platform decided: Chrome MV3 extension**, launched from the ChatGPT page. The extension does **not** import existing ChatGPT conversations or reuse ChatGPT login as API authentication. Current first slice implements only root chat → real gateway stream → local restore with explicit pairing; browser+live-key smoke test remains outstanding. Fork/Continue, real attachments, rich Markdown, long-form focus and responsive widths are still next-slice work.
-
-**Now → Next → Later:** finalize context/fork semantics and focus behavior → build/test card+composer and first branch → richer content, search/layout scaling, comparison.
+- Exact native ChatGPT DOM and accessibility selectors across account plans/site versions (manual inspection required).
+- Whether a native Branch action can be safely triggered via DOM without dependence on a brittle internal event contract.
+- Stable IDs when ChatGPT virtualizes/recreates message DOM or regenerates responses.
+- Rich response/citations extraction without copying untrusted HTML.
+- Beautiful UI's React demo primitives vs lightweight project-owned low-level components: only integrate source when it adds concrete value without faking functionality.
