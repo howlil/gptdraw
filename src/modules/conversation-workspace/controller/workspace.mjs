@@ -55,7 +55,13 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
       turns = [...turns, createRoot(prompt, id, new Date().toISOString(),
         { x: 120 + (index % 3) * 500, y: 110 + Math.floor(index / 3) * 440 })];
       emit();
-      await persist();
+      try {
+        await persist();
+      } catch {
+        turns = turns.filter(turn => turn.id !== id);
+        emit();
+        throw new Error('Could not save the new conversation. Check extension storage and retry.');
+      }
       await run(id);
       return id;
     },
