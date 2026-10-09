@@ -245,6 +245,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     },
     refresh() { rescan = true; historyStarted=false; cancelBackfill(); connect(); },
     loadEarlier() { historyStarted=false;cancelBackfill();startBackfill(); },
+    pauseHistory() {cancelBackfill();historyStarted=true;onHistory?.({status:'paused'});},
     getElement(id) { return nodes.get(id)?.element || null; },
     stop() {
       mounted = false;cancelBackfill();historyStarted=false;observer?.disconnect();bodyObserver?.disconnect();
