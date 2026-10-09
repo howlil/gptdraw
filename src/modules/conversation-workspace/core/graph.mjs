@@ -47,24 +47,28 @@ export function layoutPoint(index) {
 // Prior positions win for existing cards; explicit user-dragged positions
 // override both. New cards are placed relative to their existing neighbors.
 export function stabilizeLayout(turns, previous = new Map(), stored = {}) {
-  const result = new Map(previous);
-  for (const turn of turns) {
-    const saved = safePoint(stored[turn.id]);
-    if (saved) result.set(turn.id, saved);
+  const result=new Map(previous);
+  for(const turn of turns){
+    const saved=safePoint(stored[turn.id]);
+    if(saved)result.set(turn.id,saved);
   }
-  for (let i=0;i<turns.length;i++) {
+  if(!result.size){
+    turns.forEach((turn,i)=>result.set(turn.id,layoutPoint(i)));
+    return result;
+  }
+  const nextAnchor=new Array(turns.length);
+  let next=-1;
+  for(let i=turns.length-1;i>=0;i--){
+    if(result.has(turns[i].id))next=i;
+    nextAnchor[i]=next;
+  }
+  let left=-1;
+  for(let i=0;i<turns.length;i++){
     const turn=turns[i];
-    if (result.has(turn.id)) continue;
-    let anchor=-1;
-    for (let right=i+1;right<turns.length;right++) {
-      if (result.has(turns[right].id)) {anchor=right;break;}
-    }
-    if (anchor<0) {
-      for (let left=i-1;left>=0;left--) {
-        if (result.has(turns[left].id)) {anchor=left;break;}
-      }
-    }
-    if (anchor<0) result.set(turn.id,layoutPoint(i));
+    if(result.has(turn.id)){left=i;continue;}
+    const right=nextAnchor[i];
+    const anchor=left>=0?left:right;
+    if(anchor<0)result.set(turn.id,layoutPoint(i));
     else {
       const base=result.get(turns[anchor].id);
       result.set(turn.id,{x:base.x+(i-anchor)*476,y:layoutPoint(i).y});
