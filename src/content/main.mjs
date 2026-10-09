@@ -6,8 +6,7 @@ import { createConversationWorkspace } from '../modules/conversation-workspace/C
 
 const HOST_ID='gptdraw-extension-root';
 if (!document.getElementById(HOST_ID)) {
-  // Stay outside the ChatGPT React tree. The overlay is bounded to main;
-  // the only trigger is the Chrome extension toolbar action.
+  // The overlay auto-starts on ChatGPT. Chrome action toggles to/from native UI.
   const host=document.createElement('div');host.id=HOST_ID;
   host.style.cssText='position:fixed;inset:0;z-index:2147483645;pointer-events:none';
   const shadow=host.attachShadow({mode:'closed'});
@@ -31,6 +30,9 @@ if (!document.getElementById(HOST_ID)) {
   if(document.body)themeObserver.observe(document.body,{attributes:true,attributeFilter:['class','data-theme']});
 
   const storage=createLayoutStorage(chrome.storage.local);
+  const MODE_KEY='gptdraw:view-mode:v1';
+  const setNativeMode=normal=>{try{sessionStorage.setItem(MODE_KEY,normal?'native':'graph');}catch{}};
+  const wantsNative=()=>{try{return sessionStorage.getItem(MODE_KEY)==='native';}catch{return false;}};
   let visible=false, measuredMain=null, resizeObserver=null, alignmentQueued=false;
   const focusNative=element=>{
     hide();
@@ -92,6 +94,7 @@ if (!document.getElementById(HOST_ID)) {
   }
   async function show() {
     if (visible) return;
+    setNativeMode(false);
     visible=true;
     alignWorkspace();
     workspace.show();
@@ -100,11 +103,14 @@ if (!document.getElementById(HOST_ID)) {
   }
   function hide() {
     if (!visible) return;
+    setNativeMode(true);
     visible=false;workspace.hide();
     resizeObserver?.disconnect();resizeObserver=null;measuredMain=null;
     controller.persist().catch(()=>{});
     controller.stop();
   }
+  // Start automatically unless the user explicitly switched this tab to native mode.
+  queueMicrotask(()=>{if(!wantsNative())show().catch(console.error);});
   chrome.runtime.onMessage.addListener(message=>{
     if(message?.type==='GPTDRAW_TOGGLE'){
       visible?hide():show().catch(console.error);
