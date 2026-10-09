@@ -39,7 +39,12 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   const footer=document.createElement('div');footer.className='g-node-footer';
   const source=document.createElement('button');source.type='button';source.className='g-text-action';
   source.append(icon('arrow',13),document.createTextNode(' Open source'));
-  source.addEventListener('click',()=>onSource(turn.userId));
+  source.addEventListener('click',async()=>{
+    source.disabled=true;forkStatus.textContent='Locating original message…';
+    try{await onSource(turn.userId);forkStatus.textContent='';}
+    catch(error){forkStatus.textContent=error.message;}
+    finally{source.disabled=false;}
+  });
   const continueButton=document.createElement('button');continueButton.type='button';
   continueButton.className='g-text-action';
   continueButton.append(icon('navigate',13),document.createTextNode(' Continue'));
