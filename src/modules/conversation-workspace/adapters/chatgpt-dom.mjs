@@ -26,9 +26,9 @@ function idOf(node, role, ordinal) {
   const id = node.getAttribute?.('data-message-id')
     || inside?.getAttribute?.('data-message-id')
     || node.getAttribute?.('data-turn-id')
-    || node.getAttribute?.('data-testid')
     || node.getAttribute?.('data-turn-key')
     || inside?.getAttribute?.('data-turn-key')
+    || node.getAttribute?.('data-testid')
     || 'visible:' + ordinal;
   return role + ':' + id;
 }
