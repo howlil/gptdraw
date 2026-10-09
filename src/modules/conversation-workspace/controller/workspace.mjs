@@ -32,7 +32,7 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
       turns = completeTurn(turns, id);
     } catch (error) {
       turns = updateTurn(turns, id, {
-        status: 'failed',
+        status: error?.message === 'Request cancelled.' ? 'cancelled' : 'failed',
         error: error instanceof Error ? error.message : 'Unable to generate response.'
       });
     } finally {
@@ -58,8 +58,11 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
     },
     async retry(id) {
       const turn = turns.find(t => t.id === id);
-      if (!turn || turn.assistant.status !== 'failed') throw new Error('Only failed turns can be retried.');
+      if (!turn || !['failed', 'cancelled'].includes(turn.assistant.status)) throw new Error('Only failed or cancelled turns can be retried.');
       await run(id);
+    },
+    cancel(id) {
+      if (busy && turns.some(t => t.id === id && t.assistant.status === 'streaming')) assistant.cancel(id);
     },
     move(id, position) {
       turns = turns.map(turn => turn.id === id ? { ...turn, position } : turn);
