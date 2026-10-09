@@ -66,7 +66,7 @@ gptdraw/
 
 - A visible user turn has exactly one following assistant response slot (pending if no visible response). Orphan answers cannot manufacture fake prompts.
 - Turn ID uses rendered DOM `data-message-id`/turn data-testid, else a weaker positional fallback. **IDs are not guaranteed durable across ChatGPT DOM versions**. Namespaced layout by `/c/:conversationId` route; reject invalid position values.
-- Native ChatGPT response is the current truth; gptdraw does not store prompt/answer snapshots.
+- Native ChatGPT response is the current truth; gptdraw does not store prompt/answer snapshots. On extension upgrade the background service worker deletes the two exact legacy keys, `gptdraw:workspace:v1` and `gptdraw:gateway-pair-token`, left by the deprecated API-client version.
 - A response text mutation changes only the affected card. No synthetic AI answers or private reasoning states.
 - Sequence links connect adjacent visible turns. Real branch ancestry/selected quote offsets require a separate verified domain contract. Do not call a sequence edge a fork.
 - When host DOM changes or the page is not a conversation, display an honest empty/fallback state; never silently switch to a fake model source.
