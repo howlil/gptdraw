@@ -60,3 +60,23 @@ test('failed generation is kept for retry without duplicate turn', async () => {
   assert.equal(saved.length, 1);
   assert.equal(saved[0].assistant.text, 'Recovered');
 });
+
+test('cancel stops a stream and keeps the original root for retry', async () => {
+  let saved = [];
+  let rejectStream;
+  let cancelled = false;
+  const storage = { load: async () => saved, save: async turns => { saved = structuredClone(turns); } };
+  const assistant = {
+    stream: () => new Promise((_resolve, reject) => { rejectStream = reject; }),
+    cancel: () => { cancelled = true; rejectStream(new Error('Request cancelled.')); }
+  };
+  const controller = createWorkspaceController({ storage, assistant, idFactory: () => 'cancel-id', onChange: () => {} });
+  await controller.init();
+  const pending = controller.ask('Stop this');
+  await new Promise(resolve => setTimeout(resolve, 10));
+  controller.cancel('cancel-id');
+  await pending;
+  assert.equal(cancelled, true);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].assistant.status, 'cancelled');
+});
