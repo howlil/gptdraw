@@ -121,12 +121,12 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
   function startBackfill() {
     if (!mounted || historyStarted || backfillAbort || !onHistory ||
-        !/^\/c\//.test(pathname) || ![...nodes.values()].some(row => row.role === 'user')) return;
+        !/(?:^|\/)c\/[a-zA-Z0-9_-]+/.test(pathname) || ![...nodes.values()].some(row => row.role === 'user')) return;
     historyStarted = true;
     const activeRoot = root;
     const controller = new AbortController();backfillAbort = controller;
     backfillHistory({document,root:activeRoot,signal:controller.signal,
-      onStatus:onHistory,
+      onStatus:status => {if(!controller.signal.aborted)onHistory(status);},
       onScan:() => {
         if(controller.signal.aborted || activeRoot!==root)return {count:0};
         snapshot();
