@@ -3,7 +3,7 @@ import { createStartCard } from './StartCard.mjs';
 import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onStart }) {
+export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -24,7 +24,7 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
   viewport.append(controls);
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
-  let autoFit = true, edgesQueued = false, previousRoute = null;
+  let autoFit = true, edgesQueued = false, previousRoute = null, initialFocusPending = true;
   let stablePositions = new Map();
   const cards = new Map();
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
@@ -130,13 +130,12 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
     element:viewport,
     reconcile(state, change){
       const routeChanged=previousRoute!==state.route;
-      if(routeChanged){previousRoute=state.route;autoFit=true;stablePositions.clear();}
+      if(routeChanged){previousRoute=state.route;initialFocusPending=true;stablePositions.clear();}
       positions=state.positions;turns=state.turns;
-      stablePositions=stabilizeLayout(turns,stablePositions,positions);
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
-        if(card)card._update(turns[card._turnIndex]);
+        if(card)card._update(turns[card._turnIndex],card._turnIndex,card._turnIndex===turns.length-1);
         return; // Constant-work streaming update: no layout scan, edge rebuild or DOM churn.
       }
       if(!routeChanged && change?.type==='position'){
@@ -148,15 +147,16 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
         }
         return;
       }
+      stablePositions=stabilizeLayout(turns,stablePositions,positions);
       const active=new Set(turns.map(t=>t.id));
       for(const [id,card] of cards) if(!active.has(id)){card.remove();cards.delete(id);}
       turns.forEach((turn,index)=>{
         let card=cards.get(turn.id);
         if(!card){
-          card=createChatCard(turn,{index,onSource,onFocus:focus});
+          card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,isLatest:index===turns.length-1});
           card.tabIndex=-1;
           cards.set(turn.id,card);stage.append(card);
-        } else card._update(turn);
+        } else card._update(turn,index,index===turns.length-1);
         card._turnIndex=index;
         if(!dragging||dragging.id!==turn.id){
           const p=point(turn,index);
@@ -166,7 +166,11 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route);
       queueEdges();
-      if(routeChanged && viewport.clientWidth){autoFit=false;requestAnimationFrame(fit);}
+      if(initialFocusPending && (turns.length>0 || state.history?.status==='unavailable') && viewport.clientWidth){
+        initialFocusPending=false;
+        const latest=turns[turns.length-1];
+        requestAnimationFrame(()=>latest?focus(latest.id):fit());
+      }
     },
     fit,focus
   };
