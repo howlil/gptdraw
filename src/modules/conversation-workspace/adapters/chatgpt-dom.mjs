@@ -31,7 +31,7 @@ function idOf(node, role, ordinal) {
 
 export function findChatMain(doc) {
   const mains = [...(doc.querySelectorAll?.('main,[role="main"]') || [])];
-  if (!mains.length) return doc.body;
+  if (!mains.length) return doc.querySelector?.('main') || doc.querySelector?.('[role="main"]') || doc.body;
   // Prefer the primary conversation surface, not sidebars or popovers.
   return mains.find(el => el.querySelector?.(TURN_SELECTOR) || el.querySelector?.(ROLE_SELECTOR))
     || mains.find(el => el.querySelector?.('#prompt-textarea,[data-testid="composer-text-input"]'))
