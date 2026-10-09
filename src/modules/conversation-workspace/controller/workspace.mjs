@@ -4,6 +4,7 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
   let turns = [];
   let busy = false;
   let queue = Promise.resolve();
+  const cancellationRequested = new Set();
   let persistTimer;
   const emit = () => onChange([...turns]);
   const persist = () => {
@@ -16,13 +17,14 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
   };
   async function run(id) {
     if (busy) throw new Error('Wait for the current generation to finish.');
-    busy = true;
     const turn = turns.find(t => t.id === id);
     if (!turn) throw new Error('Unknown conversation.');
+    busy = true;
     turns = updateTurn(turns, id, { status: 'streaming', text: '', error: null, blocks: [], revisionId: null });
     emit();
-    await persist();
     try {
+      await persist();
+      if (cancellationRequested.has(id)) throw new Error('Request cancelled.');
       await assistant.stream(id, rootContext(turn), text => {
         const current = turns.find(t => t.id === id);
         turns = updateTurn(turns, id, { text: current.assistant.text + text });
@@ -36,6 +38,7 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
         error: error instanceof Error ? error.message : 'Unable to generate response.'
       });
     } finally {
+      cancellationRequested.delete(id);
       busy = false;
       clearTimeout(persistTimer);
       await persist();
@@ -62,7 +65,10 @@ export function createWorkspaceController({ storage, assistant, onChange, idFact
       await run(id);
     },
     cancel(id) {
-      if (busy && turns.some(t => t.id === id && t.assistant.status === 'streaming')) assistant.cancel(id);
+      if (busy && turns.some(t => t.id === id && t.assistant.status === 'streaming')) {
+        cancellationRequested.add(id);
+        assistant.cancel(id);
+      }
     },
     move(id, position) {
       turns = turns.map(turn => turn.id === id ? { ...turn, position } : turn);
