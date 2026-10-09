@@ -10,6 +10,7 @@ export function mountConversationWorkspace(host) {
         <div class="brand"><span class="brand-mark"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 6v8a5 5 0 0 0 5 5h5M6 10a5 5 0 0 0 5-2h5"/></svg></span><div><strong>gptdraw</strong><span>Conversation canvas</span></div></div>
         <div class="header-tools"><span class="connection" id="connection">Connecting…</span><button id="new" type="button">+ New</button><button id="close" type="button" aria-label="Close canvas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       </header>
+      <div id="workspace-error" class="workspace-error" role="alert" hidden></div>
       <div class="canvas-host"></div>
       <footer class="app-footer"><span>Drag card header · Drag background · Ctrl/⌘ + scroll to zoom</span><span>Stored in this extension</span></footer>
       <section id="pairing" class="pairing" hidden>
@@ -27,20 +28,24 @@ export function mountConversationWorkspace(host) {
   const connection = host.querySelector('#connection');
   const pairing = host.querySelector('#pairing');
   const submit = host.querySelector('#pair-form button');
+  const errorBox = host.querySelector('#workspace-error');
+  const showError = error => { errorBox.textContent = error instanceof Error ? error.message : String(error); errorBox.hidden = false; };
+  const clearError = () => { errorBox.textContent = ''; errorBox.hidden = true; };
   let paired = false, busy = false, snapshot = [];
   let controller;
   const canvas = createGraphCanvas({
     onAsk: async text => {
-      if (!paired || busy) return;
-      busy = true; canvas.render(snapshot, true);
+      if (!paired || busy) throw new Error('Connect the gateway and wait for the current request.');
+      busy = true; clearError(); canvas.render(snapshot, true);
       try { await controller.ask(text); }
-      catch (error) { host.querySelector('#pair-error').textContent = error.message; }
+      catch (error) { showError(error); throw error; }
       finally { busy = false; canvas.render(snapshot, false); }
     },
     onRetry: async id => {
       if (!paired || busy) return;
-      busy = true; canvas.render(snapshot, true);
+      busy = true; clearError(); canvas.render(snapshot, true);
       try { await controller.retry(id); }
+      catch (error) { showError(error); }
       finally { busy = false; canvas.render(snapshot, false); }
     },
     onCancel: id => controller.cancel(id),
@@ -74,5 +79,5 @@ export function mountConversationWorkspace(host) {
   });
   window.addEventListener('pagehide', () => { controller.flush().catch(() => {}); unsubscribe(); bridge.dispose(); });
   controller.init().then(() => { bridge.status(); canvas.fit(snapshot); })
-    .catch(error => { connection.textContent = 'Storage error'; console.error(error); });
+    .catch(error => { connection.textContent = 'Storage error'; showError(error); console.error(error); });
 }
