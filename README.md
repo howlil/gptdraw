@@ -75,7 +75,7 @@ npm run build  # esbuild + Tailwind -> dist/
 npm run check  # both
 ```
 
-No API-related `.env` is needed. No remote JavaScript is loaded at runtime.
+No API-related `.env` is needed. No remote JavaScript is loaded at runtime. When updating from the earlier API-client prototype, the extension automatically clears its **old saved conversation snapshot and gateway pairing token**; new per-conversation layout positions are preserved.
 
 ## Sources of truth
 
