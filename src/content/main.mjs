@@ -1,6 +1,7 @@
 import { createChatGPTObserver, findChatMain } from '../modules/conversation-workspace/adapters/chatgpt-dom.mjs';
 import { submitNativePrompt, findNativeComposer } from '../modules/conversation-workspace/adapters/native-composer.mjs';
 import { createLayoutStorage } from '../modules/conversation-workspace/adapters/metadata.mjs';
+import { revealNativeSource } from '../modules/conversation-workspace/adapters/source-navigation.mjs';
 import { createBranchStorage } from '../modules/conversation-workspace/adapters/branches.mjs';
 import { prepareNativeBranch } from '../modules/conversation-workspace/adapters/chatgpt-branch.mjs';
 import { createWorkspaceController } from '../modules/conversation-workspace/controller/workspace.mjs';
@@ -50,7 +51,12 @@ if (!document.getElementById(HOST_ID)) {
   });
   const workspace=createConversationWorkspace({
     onClose:hide,
-    onSource:id=>focusNative(controller.getSource(id)),
+    onSource:async id=>{
+      let element=controller.getSource(id);
+      if(!element?.isConnected)element=await revealNativeSource(document,id);
+      if(!element)throw new Error('Source not currently available in the rendered ChatGPT history.');
+      focusNative(element);
+    },
     onCompose:()=>{
       hide();
       requestAnimationFrame(()=>{
