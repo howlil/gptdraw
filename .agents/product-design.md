@@ -17,7 +17,7 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 ## Observed source and product caveats
 
 - The earlier HTML prototype created fictional assistant answers, stored conversations in an in-memory JS graph and used section indexes as fork anchors. **It is a visual reference, not the runtime data source**.
-- The initial `0 turns` bug was caused by recognizing conversation wrappers while **requiring a nested `data-message-author-role`**. Current adapter checks wrapper `data-turn=user|assistant` first, then nested `data-message-author-role` and `data-conversation-role`, and falls back to role-only messages. Text extraction uses known user-bubble and assistant-markdown selectors. All remain **version-sensitive** and require live ChatGPT verification.
+- The initial `0 turns` bug was caused by recognizing conversation wrappers while **requiring a nested `data-message-author-role`**. Current adapter checks wrapper `data-turn=user|assistant` first, then nested `data-message-author-role` and `data-conversation-role`, and falls back to role-only messages or `data-turn-key` grouped exchanges when the user bubble is present. Text extraction uses known user-bubble and assistant-markdown selectors. All remain **version-sensitive** and require live ChatGPT verification.
 - DOM snapshots do not necessarily include hidden messages, model context, tools, attachments or historical branches.
 - A sequential connector between visible turns is not a confirmed ChatGPT-native fork. Fork automation should not be displayed until the real branching path and source anchoring have been verified.
 - Native ChatGPT composer remains the actual send mechanism in first slice; extension can return focus to it but does not fake sending.
