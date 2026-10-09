@@ -1,4 +1,5 @@
 import { control,icon } from '../../../components/ui/icons.mjs';
+import { quoteAnchor } from '../core/branch.mjs';
 
 // Dialogue-style card from the supplied spatial HTML prototype. All content
 // is generated through DOM textContent: no untrusted ChatGPT HTML injection.
@@ -12,7 +13,7 @@ function createBlock(block) {
     ? block.text : block.text;
   return element;
 }
-export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,isLatest=false}) {
+export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,isLatest=false}) {
   const card=document.createElement('article');
   card.className='g-card';
   card.dataset.turnId=turn.id;card.tabIndex=-1;
@@ -46,7 +47,54 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,isL
     if(card.classList.contains('g-latest'))composerInput.focus();
     else onSource(turn.userId);
   });
-  footer.append(source,continueButton);
+  const fork=document.createElement('button');fork.type='button';
+  fork.className='g-text-action';fork.textContent='Fork';
+  fork.title='Use ChatGPT native Branch in new chat';
+  const forkQuote=document.createElement('button');forkQuote.type='button';
+  forkQuote.className='g-text-action';forkQuote.textContent='Fork selected quote';
+  forkQuote.hidden=true;
+  const forkStatus=document.createElement('span');forkStatus.className='g-fork-status';
+  forkStatus.setAttribute('role','status');
+  let selected=null;
+  const updateSelection=()=>{
+    const selection=card.getRootNode()?.getSelection?.() || document.getSelection?.();
+    if(!selection||selection.isCollapsed||!selection.rangeCount){selected=null;forkQuote.hidden=true;return;}
+    const range=selection.getRangeAt(0);
+    const parent=range.startContainer?.nodeType===1?range.startContainer:range.startContainer?.parentElement;
+    const block=parent?.closest?.('.g-answer-block');
+    const end=range.endContainer?.nodeType===1?range.endContainer:range.endContainer?.parentElement;
+    if(!block||!block.contains(end) || !answer.contains(block)){
+      selected=null;forkQuote.hidden=true;return;
+    }
+    const blockIndex=[...answer.children].indexOf(block);
+    const prefix=range.cloneRange();
+    prefix.selectNodeContents(block);prefix.setEnd(range.startContainer,range.startOffset);
+    const start=prefix.toString().length, text=range.toString();
+    if(!text.trim()){selected=null;forkQuote.hidden=true;return;}
+    selected={blockIndex,start,end:start+text.length,text};
+    forkQuote.hidden=false;
+  };
+  answer.addEventListener('mouseup',updateSelection);
+  answer.addEventListener('keyup',updateSelection);
+  async function runFork(anchor) {
+    forkStatus.textContent='Opening native ChatGPT Branch…';
+    fork.disabled=true;forkQuote.disabled=true;
+    try {await onFork(turn.id,anchor);forkStatus.textContent='Create the branch in ChatGPT; confirm it when opened.';}
+    catch(error){forkStatus.textContent=error.message||'Native Branch unavailable.';}
+    finally{fork.disabled=false;forkQuote.disabled=false;}
+  }
+  fork.addEventListener('click',()=>runFork(null));
+  forkQuote.addEventListener('click',async()=>{
+    if(!selected)return;
+    try{
+      const anchor=await quoteAnchor(selected);
+      await runFork(anchor);
+      // The anchor is a reference, not a reduction of ChatGPT's model context.
+      forkStatus.textContent='Quote anchor recorded. Paste the quote into the new chat to focus the branch.';
+    }catch(error){forkStatus.textContent=error.message||'Selection is no longer valid.';}
+  });
+  footer.append(source,continueButton,fork,forkQuote);
+  body.append(forkStatus);
   const composer=document.createElement('form');composer.className='g-node-composer';
   const composerInput=document.createElement('textarea');composerInput.rows=1;
   composerInput.maxLength=12000;composerInput.placeholder='Ask a follow-up…';
