@@ -1,5 +1,7 @@
 import { createChatCard } from './ChatCard.mjs';
 import { createStartCard } from './StartCard.mjs';
+import { createMinimap } from './Minimap.mjs';
+import { buildBranchWorkspace } from '../core/branch-workspace.mjs';
 import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout, isCardNearViewport } from '../core/graph.mjs';
 
@@ -21,7 +23,15 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   controls.append(firstButton,control('Zoom out','minus',()=>zoom(scale-.12)),zoomLabel,
     control('Zoom in','plus',()=>zoom(scale+.12)),
     control('Fit conversation','fit',()=>fit()),latestButton);
+  const branchesButton=control('Focus branch family','graph',()=>focusBranches());
+  controls.append(branchesButton);
   viewport.append(controls);
+  const minimap=createMinimap({onNavigate:world=>{
+    panX=viewport.clientWidth/2-world.x*scale;
+    panY=viewport.clientHeight/2-world.y*scale;
+    autoFit=false;renderTransform();
+  }});
+  viewport.append(minimap.element);
   const outline=document.createElement('aside');outline.className='g-outline';outline.hidden=true;
   const outlineHead=document.createElement('div');outlineHead.className='g-outline-head';
   const outlineTitle=document.createElement('strong');outlineTitle.textContent='Conversation outline';
@@ -71,12 +81,13 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   let stablePositions = new Map();
   const cards = new Map();
   const branchNodes=new Map();
-  let branchPositions=new Map(),visibleQueued=false;
+  let branchPositions=new Map(),branchEdges=[],branchCurrent=null,visibleQueued=false;
   const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(()=>queueEdges()):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   const renderTransform = () => {
     stage.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
     zoomLabel.textContent = Math.round(scale*100) + '%';
+    minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
     queueEdges();scheduleVisible();
   };
   const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
@@ -123,73 +134,87 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     if(!visibleQueued){visibleQueued=true;requestAnimationFrame(syncVisibleCards);}
   }
   const drawEdges = () => {
-    edgesQueued = false;
+    edgesQueued=false;
     edgeLayer.replaceChildren();
-    for (let i=1;i<turns.length;i++) {
-      const left = cards.get(turns[i-1].id), right = cards.get(turns[i].id);
-      if (!left || !right) continue;
-      const a = point(turns[i-1],i-1), b = point(turns[i],i);
-      const x1=a.x+left.offsetWidth, y1=a.y+43, x2=b.x, y2=b.y+43;
-      const c=Math.max(60,Math.abs(x2-x1)*.42);
+    for(let i=1;i<turns.length;i++){
+      const aCard=cards.get(turns[i-1].id),bCard=cards.get(turns[i].id);
+      if(!aCard||!bCard)continue;
+      const a=point(turns[i-1],i-1),b=point(turns[i],i);
+      const x1=a.x+aCard.offsetWidth,y1=a.y+43,x2=b.x,y2=b.y+43;
+      const bend=Math.max(60,Math.abs(x2-x1)*.42);
       const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d','M'+x1+' '+y1+' C'+(x1+c)+' '+y1+' '+(x2-c)+' '+y2+' '+x2+' '+y2);
-      path.setAttribute('fill','none'); path.setAttribute('stroke','var(--g-edge)');
-      path.setAttribute('stroke-width','1.7'); edgeLayer.append(path);
+      path.setAttribute('d','M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2);
+      path.setAttribute('fill','none');path.setAttribute('stroke','var(--g-edge)');
+      path.setAttribute('stroke-width','1.7');edgeLayer.append(path);
     }
-    const first=turns[0],last=turns[turns.length-1];
-    for(const [key,entry] of branchPositions){
-      const node=branchNodes.get(key);
-      if(!node)continue;
-      const target=entry.kind==='parent'?first:last;
-      const targetCard=target?cards.get(target.id):startCard.element;
-      if(!targetCard)continue; // A virtualized source cannot expose an edge endpoint.
-      const p=target?point(target,entry.kind==='parent'?0:turns.length-1):{x:130,y:140};
-      const x1=entry.kind==='parent'?entry.x+node.offsetWidth:p.x+targetCard.offsetWidth;
-      const y1=entry.kind==='parent'?entry.y+node.offsetHeight/2:p.y+30;
-      const x2=entry.kind==='parent'?p.x:entry.x;
-      const y2=entry.kind==='parent'?p.y+30:entry.y+node.offsetHeight/2;
-      const curve=document.createElementNS('http://www.w3.org/2000/svg','path');
-      const bend=Math.max(40,Math.abs(x2-x1)*.4);
-      curve.setAttribute('d','M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2);
-      curve.setAttribute('fill','none');curve.setAttribute('stroke','var(--g-text)');
-      curve.setAttribute('stroke-dasharray','4 5');curve.setAttribute('stroke-width','1.5');
-      edgeLayer.append(curve);
+    // ONLY confirmed native parent/child relationships are dashed.
+    for(const edge of branchEdges){
+      const a=branchPositions.get(edge.from),b=branchPositions.get(edge.to);
+      if(!a||!b)continue;
+      const x1=a.x+230,y1=a.y+39,x2=b.x,y2=b.y+39;
+      const bend=Math.max(50,(x2-x1)*.45);
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d','M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2);
+      path.setAttribute('fill','none');path.setAttribute('stroke','var(--g-text)');
+      path.setAttribute('stroke-dasharray','4 5');path.setAttribute('stroke-width','1.5');
+      edgeLayer.append(path);
     }
   };
-
-  function renderBranchNodes(relations) {
-    const first=turns[0],last=turns[turns.length-1];
-    const left=first?point(first,0):{x:130,y:140};
-    const right=last?point(last,turns.length-1):left;
-    const next=new Map();
-    if(relations?.parent){
-      const record=relations.parent;
-      next.set('parent:'+record.id,{conversationId:record.parentConversationId,
-        title:'Parent conversation',x:left.x-430,y:left.y+8,kind:'parent'});
+  function renderBranchNodes(records,route){
+    const tree=buildBranchWorkspace(records,route);
+    const last=turns[turns.length-1];
+    const base=last?point(last,turns.length-1):{x:130,y:140};
+    const origin={x:base.x+535,y:base.y+210};
+    const entries=tree.nodes.length>1?tree.nodes:[];
+    const active=new Set(entries.map(n=>n.id));
+    branchCurrent=entries.find(n=>n.isCurrent)?.id||null;
+    branchEdges=tree.edges;
+    for(const [id,el] of branchNodes){
+      if(!active.has(id)){el.remove();branchNodes.delete(id);}
     }
-    for(const [i,record] of (relations?.children||[]).entries()){
-      next.set('child:'+record.id,{conversationId:record.childConversationId,
-        title:'Child branch '+(i+1),x:right.x+470,y:right.y+i*110,kind:'child'});
-    }
-    for(const [key,node] of branchNodes)if(!next.has(key)){
-      node.remove();branchNodes.delete(key);
-    }
-    branchPositions=next;
-    for(const [key,entry] of next){
-      let node=branchNodes.get(key);
-      if(!node){
-        node=document.createElement('button');node.type='button';
-        node.className='g-branch-node';
-        node.addEventListener('click',()=>onOpenConversation(node.dataset.conversationId));
-        branchNodes.set(key,node);stage.append(node);
+    branchPositions=new Map();
+    for(const [index,entry] of entries.entries()){
+      const x=origin.x+entry.x,y=origin.y+entry.y;
+      branchPositions.set(entry.id,{x,y,branch:true,w:230,h:78});
+      let button=branchNodes.get(entry.id);
+      if(!button){
+        button=document.createElement('button');button.type='button';
+        button.className='g-branch-node';
+        button.addEventListener('click',()=>{
+          if(button.dataset.current==='true')focusBranches();
+          else onOpenConversation(button.dataset.conversationId);
+        });
+        branchNodes.set(entry.id,button);stage.append(button);
       }
-      node.dataset.conversationId=entry.conversationId;
-      node.replaceChildren();
-      const tag=document.createElement('strong');tag.textContent=entry.title;
-      const caption=document.createElement('span');caption.textContent='Open ChatGPT conversation';
-      node.append(tag,caption);
-      node.style.left=entry.x+'px';node.style.top=entry.y+'px';
+      button.dataset.conversationId=entry.id;
+      button.dataset.current=String(entry.isCurrent);
+      button.classList.toggle('g-current-branch',entry.isCurrent);
+      button.replaceChildren();
+      const title=document.createElement('strong');
+      title.textContent=entry.isCurrent?'Current conversation':
+        entry.parentId===null?'Root conversation':'Branch '+index;
+      const caption=document.createElement('span');
+      caption.textContent=entry.isCurrent?'Messages loaded in this canvas':
+        'Metadata only · Open to load messages';
+      button.append(title,caption);
+      button.style.left=x+'px';button.style.top=y+'px';
     }
+    branchesButton.disabled=entries.length===0;
+  }
+  function focusBranches(){
+    const current=branchPositions.get(branchCurrent)
+      ||branchPositions.values().next().value;
+    if(!current)return;
+    scale=1;autoFit=false;
+    panX=viewport.clientWidth/2-(current.x+115);
+    panY=viewport.clientHeight/2-(current.y+39);
+    renderTransform();
+  }
+  function updateMinimap(){
+    const points=turns.map((turn,i)=>({...point(turn,i),w:366,h:230}));
+    points.push(...branchPositions.values());
+    minimap.setPoints(points.length?points:[{x:130,y:140,w:366,h:230}]);
+    minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
   }
   const queueEdges = () => { if (!edgesQueued) { edgesQueued=true; requestAnimationFrame(drawEdges); } };
   const fit = () => {
@@ -304,7 +329,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       turns.forEach((turn,index)=>{turnById.set(turn.id,turn);turnIndexById.set(turn.id,index);});
       syncVisibleCards();
       renderOutline();
-      renderBranchNodes(state.relations);
+      renderBranchNodes(state.branches,state.route);
+      updateMinimap();
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route);
       queueEdges();
