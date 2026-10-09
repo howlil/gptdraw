@@ -50,7 +50,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
         'reached-top':'Scanned available history',
         limited:'Some earlier messages may be unavailable',
         unavailable:'Only rendered messages available',
-        idle:'',cancelled:''
+        idle:'',cancelled:'',paused:'History scan paused'
       };
       historyLabel.textContent=labels[status] || '';
       if(status==='loading'&&state.history?.count>0)
