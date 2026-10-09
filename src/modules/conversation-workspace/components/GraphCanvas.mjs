@@ -1,7 +1,7 @@
 import { createChatCard } from './ChatCard.mjs';
 import { createStartCard } from './StartCard.mjs';
 import { control } from '../../../components/ui/icons.mjs';
-import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
+import { layoutPoint, stabilizeLayout, isCardNearViewport } from '../core/graph.mjs';
 
 export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onOpenConversation }) {
   const viewport = document.createElement('section');
@@ -31,9 +31,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   outline.append(outlineHead,outlineItems);viewport.append(outline);
   let query='',outlineOpen=false;
   const searchable=turn=>((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
+  const turnById=new Map();
   const applySearch=()=>{
-    for(const turn of turns){
-      const card=cards.get(turn.id);if(!card)continue;
+    for(const [id,card] of cards){
+      const turn=turnById.get(id);
+      if(!turn)continue;
       const hit=!query||searchable(turn).includes(query);
       card.classList.toggle('g-search-dim',!!query&&!hit);
       card.classList.toggle('g-search-hit',!!query&&hit);
@@ -69,14 +71,57 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   let stablePositions = new Map();
   const cards = new Map();
   const branchNodes=new Map();
-  let branchPositions=new Map();
+  let branchPositions=new Map(),visibleQueued=false;
+  const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(()=>queueEdges()):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   const renderTransform = () => {
     stage.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
     zoomLabel.textContent = Math.round(scale*100) + '%';
-    queueEdges();
+    queueEdges();scheduleVisible();
   };
   const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
+
+  const shouldMount=(turn,index)=>{
+    if(turns.length<80)return true;
+    return isCardNearViewport(point(turn,index),
+      {panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
+  };
+  function syncVisibleCards(){
+    visibleQueued=false;
+    const active=new Set(turns.map(t=>t.id));
+    for(const [id,card] of cards){
+      const index=turns.findIndex(t=>t.id===id);
+      if(!active.has(id) || (index>=0 && !shouldMount(turns[index],index)
+          && !(dragging?.id===id)
+          && !card.contains(card.getRootNode()?.activeElement))){
+        cardResize?.unobserve(card);card.remove();cards.delete(id);
+      }
+    }
+    turns.forEach((turn,index)=>{
+      if(!shouldMount(turn,index) && !cards.has(turn.id))return;
+      let card=cards.get(turn.id);
+      if(!card){
+        card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,
+          isLatest:index===turns.length-1});
+        card.tabIndex=-1;cards.set(turn.id,card);stage.append(card);
+        cardResize?.observe(card);
+        card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
+      } else if(card._lastTurn!==turn || card._lastIndex!==index ||
+          card._lastLatest!==(index===turns.length-1)){
+        card._update(turn,index,index===turns.length-1);
+        card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
+      }
+      card._turnIndex=index;
+      if(!dragging || dragging.id!==turn.id){
+        const p=point(turn,index);
+        card.style.left=p.x+'px';card.style.top=p.y+'px';
+      }
+    });
+    applySearch();queueEdges();
+  }
+  function scheduleVisible(){
+    if(!visibleQueued){visibleQueued=true;requestAnimationFrame(syncVisibleCards);}
+  }
   const drawEdges = () => {
     edgesQueued = false;
     edgeLayer.replaceChildren();
@@ -216,12 +261,12 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   function focus(id){
     const idx=turns.findIndex(turn=>turn.id===id);
     if(idx<0)return;
-    const p=point(turns[idx],idx);
-    const card=cards.get(id);if(!card)return;
-    zoom(1);
-    panX=viewport.clientWidth/2-(p.x+card.offsetWidth/2)*scale;
-    panY=viewport.clientHeight/2-(p.y+Math.min(card.offsetHeight,400)/2)*scale;
-    renderTransform();card.focus({preventScroll:true});
+    const p=point(turns[idx],idx),card=cards.get(id);
+    scale=1;autoFit=false;
+    panX=viewport.clientWidth/2-(p.x+(card?.offsetWidth||366)/2);
+    panY=viewport.clientHeight/2-(p.y+Math.min(card?.offsetHeight||270,400)/2);
+    renderTransform();syncVisibleCards();
+    requestAnimationFrame(()=>cards.get(id)?.focus({preventScroll:true}));
   }
   return {
     element:viewport,
@@ -230,9 +275,15 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       if(routeChanged){previousRoute=state.route;initialFocusPending=true;stablePositions.clear();}
       positions=state.positions;turns=state.turns;
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
+      if(routeChanged)turnById.clear();
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
-        if(card)card._update(turns[card._turnIndex],card._turnIndex,card._turnIndex===turns.length-1);
+        if(card) {
+          const turn=turns[card._turnIndex];
+          card._update(turn,card._turnIndex,card._turnIndex===turns.length-1);
+          card._lastTurn=turn;
+          turnById.set(change.turnId,turn);
+        }
         if(query)applySearch();
         return; // Constant-work streaming update: no layout scan, edge rebuild or DOM churn.
       }
@@ -246,22 +297,9 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         return;
       }
       stablePositions=stabilizeLayout(turns,stablePositions,positions);
-      const active=new Set(turns.map(t=>t.id));
-      for(const [id,card] of cards) if(!active.has(id)){card.remove();cards.delete(id);}
-      turns.forEach((turn,index)=>{
-        let card=cards.get(turn.id);
-        if(!card){
-          card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,isLatest:index===turns.length-1});
-          card.tabIndex=-1;
-          cards.set(turn.id,card);stage.append(card);
-        } else card._update(turn,index,index===turns.length-1);
-        card._turnIndex=index;
-        if(!dragging||dragging.id!==turn.id){
-          const p=point(turn,index);
-          card.style.left=p.x+'px';card.style.top=p.y+'px';
-        }
-      });
-      applySearch();renderOutline();
+      turnById.clear();turns.forEach(turn=>turnById.set(turn.id,turn));
+      syncVisibleCards();
+      renderOutline();
       renderBranchNodes(state.relations);
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route);
