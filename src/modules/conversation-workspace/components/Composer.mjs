@@ -19,13 +19,19 @@ export function createComposer(onSend) {
       form.requestSubmit();
     }
   });
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault();
     const value = textarea.value.trim();
-    if (!value) return;
-    onSend(value);
-    textarea.value = '';
-    measure();
+    if (!value || textarea.disabled) return;
+    button.disabled = true;
+    try {
+      await onSend(value);
+      textarea.value = '';
+    } catch {
+      // Keep the draft so a failed save can be tried again.
+    } finally {
+      measure();
+    }
   });
   return { element: form, focus: () => textarea.focus(), textarea };
 }
