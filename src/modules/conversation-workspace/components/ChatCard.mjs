@@ -3,7 +3,7 @@ import { quoteAnchor } from '../core/branch.mjs';
 
 import { createResponseBlock } from './ResponseBlock.mjs';
 
-export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,isLatest=false}) {
+export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,onRead,onCompare,onBookmark,isLatest=false}) {
   const card=document.createElement('article');
   card.className='g-card';
   card.dataset.turnId=turn.id;card.tabIndex=-1;
@@ -98,7 +98,18 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
         : 'Quote anchored. Copy/paste the selected quote in the child chat to focus it.';
     }catch(error){forkStatus.textContent=error.message||'Selection is no longer valid.';}
   });
-  footer.append(source,continueButton,fork,forkQuote);
+  const read=control('Read full answer','book',()=>onRead(turn.id));
+  read.classList.add('g-card-footer-icon');
+  const compare=control('Select card for comparison','columns',()=>onCompare(turn.id));
+  compare.classList.add('g-card-footer-icon');
+  const bookmark=control('Bookmark card','bookmark',async()=>{
+    bookmark.disabled=true;
+    try{await onBookmark(turn.id);}
+    catch(error){forkStatus.textContent=error?.message||'Bookmark failed.';}
+    finally{bookmark.disabled=false;}
+  });
+  bookmark.classList.add('g-card-footer-icon');
+  footer.append(source,continueButton,fork,forkQuote,read,compare,bookmark);
   body.append(forkStatus);
   const composer=document.createElement('form');composer.className='g-node-composer';
   const composerInput=document.createElement('textarea');composerInput.rows=1;
@@ -135,6 +146,15 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   });
   card.append(head,body,footer,composer);
   let blocks=[],lastAnswer='',lastSignature='';
+  card._setBookmark=enabled=>{
+    bookmark.classList.toggle('g-is-bookmarked',!!enabled);
+    bookmark.title=enabled?'Remove bookmark':'Bookmark card';
+    bookmark.setAttribute('aria-label',bookmark.title);
+  };
+  card._setCompare=enabled=>{
+    compare.classList.toggle('g-is-comparing',!!enabled);
+    compare.title=enabled?'Remove from comparison':'Select card for comparison';
+  };
   card._update=(next,idx,latest)=>{
     if(Number.isInteger(idx))label.textContent=String(idx+1).padStart(2,'0');
     origin.textContent=latest?'Latest':'';
