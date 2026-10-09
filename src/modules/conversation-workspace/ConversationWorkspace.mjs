@@ -1,7 +1,8 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
 
-export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart, onSend }) {
+export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart, onSend,
+  onFork, onConfirmBranch, onDismissBranch, onOpenConversation }) {
   const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
   const header=document.createElement('header'); header.className='g-topbar';
   const branding=document.createElement('div'); branding.className='g-brand';
@@ -24,7 +25,16 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   compose.append(document.createTextNode(' Back to ChatGPT'));
   compose.addEventListener('click',onClose); tools.append(compose,control('Close canvas','close',onClose));
   header.append(branding,tools);wrapper.append(header);
-  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend});
+  const branchNotice=document.createElement('div');branchNotice.className='g-branch-notice';branchNotice.hidden=true;
+  branchNotice.setAttribute('role','status');
+  const noticeText=document.createElement('span');noticeText.className='g-branch-message';
+  const confirm=document.createElement('button');confirm.type='button';confirm.textContent='Link this branch';
+  const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Dismiss';
+  const branchError=document.createElement('span');branchError.className='g-branch-error';
+  branchNotice.append(noticeText,confirm,dismiss,branchError);wrapper.append(branchNotice);
+  confirm.addEventListener('click',async()=>{confirm.disabled=true;try{await onConfirmBranch();}catch(error){branchError.textContent=error.message;}finally{confirm.disabled=false;}});
+  dismiss.addEventListener('click',async()=>{try{await onDismissBranch();}catch(error){branchError.textContent=error.message;}});
+  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onOpenConversation});
   wrapper.append(canvas.element);
   const footer=document.createElement('footer');footer.className='g-footer';
   footer.innerHTML='<span>Drag card headers to move · Ctrl/⌘ + wheel to zoom · Use Fit for overview</span><span>ChatGPT owns the conversation</span>';
@@ -46,6 +56,15 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
       if(status==='loading'&&state.history?.count>0)
         historyLabel.textContent='Scanning history · '+Math.floor(state.history.count/2)+' turns';
       historyLabel.hidden=!historyLabel.textContent;
+      const pending=state.pendingBranch;
+      const current=state.route?.startsWith('conversation:')?state.route.slice(13):null;
+      const canConfirm=!!pending&&!!current&&pending.parentConversationId!==current;
+      branchNotice.hidden=!pending&&!state.branchError;
+      noticeText.textContent=canConfirm
+        ? 'Native branch detected? Confirm only if this chat was created from the selected message.'
+        : pending?'Fork requested. Finish creating the new chat in ChatGPT.':'';
+      confirm.hidden=!canConfirm;
+      branchError.textContent=state.branchError || '';
       if(change?.type==='history')return;
       if(change?.type!=='patch' && change?.type!=='position')
         count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns');
