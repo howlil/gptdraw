@@ -1,7 +1,7 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
 
-export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart }) {
+export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart, onSend }) {
   const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
   const header=document.createElement('header'); header.className='g-topbar';
   const branding=document.createElement('div'); branding.className='g-brand';
@@ -14,16 +14,16 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   const count=document.createElement('span');count.className='g-turn-count';
   const historyLabel=document.createElement('span');historyLabel.className='g-history-status';
   historyLabel.setAttribute('role','status');historyLabel.setAttribute('aria-live','polite');
-  tools.append(historyLabel,count,control('Sync current conversation / Load earlier history','refresh',onRefresh));
+  tools.append(historyLabel,count,control('Load earlier messages / Sync','refresh',onRefresh));
   const compose=document.createElement('button');compose.type='button';
   compose.className='g-primary-control';compose.append(icon('message',15));
-  compose.append(document.createTextNode(' Compose in ChatGPT'));
-  compose.addEventListener('click',onCompose); tools.append(compose,control('Close canvas','close',onClose));
+  compose.append(document.createTextNode(' Back to ChatGPT'));
+  compose.addEventListener('click',onClose); tools.append(compose,control('Close canvas','close',onClose));
   header.append(branding,tools);wrapper.append(header);
-  const canvas=createGraphCanvas({onSource,onMove,onStart});
+  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend});
   wrapper.append(canvas.element);
   const footer=document.createElement('footer');footer.className='g-footer';
-  footer.innerHTML='<span>Move cards by dragging their header · Ctrl/⌘ + scroll to zoom</span><span>ChatGPT owns responses · Layout stored locally</span>';
+  footer.innerHTML='<span>Drag card headers to move · Ctrl/⌘ + wheel to zoom · Use Fit for overview</span><span>ChatGPT owns the conversation</span>';
   wrapper.append(footer);
   return {
     element:wrapper,
@@ -32,8 +32,8 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
     render(state, change){
       const status=state.history?.status || 'idle';
       const labels={
-        loading:'Loading older messages…',
-        complete:'History scanned',
+        loading:'Loading conversation history…',
+        complete:'Reached currently available older messages',
         limited:'Some earlier messages may be unavailable',
         unavailable:'Only rendered messages available',
         idle:'',cancelled:''
