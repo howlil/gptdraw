@@ -2,7 +2,7 @@ import { createGraphCanvas } from './components/GraphCanvas.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
 
 export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart, onSend,
-  onFork, onConfirmBranch, onDismissBranch, onOpenConversation }) {
+  onFork, onBookmark, onConfirmBranch, onDismissBranch, onOpenConversation }) {
   const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
   const header=document.createElement('header'); header.className='g-topbar';
   const branding=document.createElement('div'); branding.className='g-brand';
@@ -34,11 +34,25 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   branchNotice.append(noticeText,confirm,dismiss,branchError);wrapper.append(branchNotice);
   confirm.addEventListener('click',async()=>{confirm.disabled=true;try{await onConfirmBranch();}catch(error){branchError.textContent=error.message;}finally{confirm.disabled=false;}});
   dismiss.addEventListener('click',async()=>{try{await onDismissBranch();}catch(error){branchError.textContent=error.message;}});
-  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onOpenConversation});
+  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onBookmark,onOpenConversation});
   wrapper.append(canvas.element);
   const footer=document.createElement('footer');footer.className='g-footer';
-  footer.innerHTML='<span>Drag card headers to move · Ctrl/⌘ + wheel to zoom · Use Fit for overview</span><span>ChatGPT owns the conversation</span>';
+  footer.innerHTML='<span>J / K navigate · R read · B branches · F fit · / find · Esc return</span><span>Native ChatGPT owns all AI responses</span>';
   wrapper.append(footer);
+  wrapper.addEventListener('keydown',event=>{
+    if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey)return;
+    if(event.key==='Escape'&&canvas.inspectorOpen()){
+      event.stopPropagation();event.preventDefault();canvas.closeInspector();return;
+    }
+    const element=event.target;
+    if(element?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
+    const key=event.key.toLowerCase();
+    if(key==='/'){event.preventDefault();search.focus();search.select();return;}
+    if(key==='j'||key==='k'){event.preventDefault();canvas.nextTurn(key==='j'?1:-1);}
+    if(key==='r'){event.preventDefault();canvas.readFocused();}
+    if(key==='b'){event.preventDefault();canvas.focusBranches();}
+    if(key==='f'){event.preventDefault();canvas.fit();}
+  });
   return {
     element:wrapper,
     show(){wrapper.hidden=false;},
