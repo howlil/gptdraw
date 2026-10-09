@@ -56,7 +56,7 @@ gptdraw/
 ## Performance contract — low-level DOM, not zero-cost fiction
 
 - **DOM observer** attaches to the current conversation `main` subtree. Its MutationObserver groups changes to one `requestAnimationFrame`. For character data changes, reread only the impacted turn; rescan message wrappers only on structural changes or route switches. Watch body direct children for host remounts.
-- **Projection:** cache normalized turn identities. Recompute prompt/reply pairs in memory, not by querying the entire page for every token.
+- **Projection:** index native message IDs and their owning turn. Recompute prompt/reply pairs only when message structure changes; streaming patches update the matching turn and card directly in constant lookup work. Never query the whole page on each token.
 - **Renderer:** one stable card element per user-turn ID; update `textContent` for changed assistant response. Do not `innerHTML` or rebuild all cards every event.
 - **Canvas:** CSS transform pan/zoom and lightweight SVG paths. Avoid giant rasterized planes and reparsing markdown for each streamed token. Manual positions persist at a debounced rate.
 - **CSS:** Tailwind compiled/minified at build; inject into closed Shadow DOM via local stylesheet. No runtime Tailwind, React, model SDK, GL libraries, or remote code.
@@ -70,7 +70,7 @@ gptdraw/
 - A response text mutation changes only the affected card. No synthetic AI answers or private reasoning states.
 - Sequence links connect adjacent visible turns. Real branch ancestry/selected quote offsets require a separate verified domain contract. Do not call a sequence edge a fork.
 - When host DOM changes or the page is not a conversation, display an honest empty/fallback state; never silently switch to a fake model source.
-- Closing overlay leaves native page intact; source action scrolls to corresponding native message; native Compose returns to the actual input.
+- Closing overlay leaves native page intact; source action scrolls to corresponding native message; native Compose returns to the actual input. Legacy `TRUSTED_CONTEXTS` access level is reset for the extension's isolated content script because only non-secret layout metadata remains.
 
 ## Boundary tests and validation
 
