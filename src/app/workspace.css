@@ -32,7 +32,8 @@
 }
 .g-launcher:hover {background:var(--g-panel);}
 .g-workspace {
-  @apply fixed inset-0 flex flex-col;
+  @apply absolute flex flex-col;
+  left:0;top:0;width:100%;height:100%;
   pointer-events:auto;background:var(--g-bg);color:var(--g-text);z-index:1;
 }
 .g-topbar {
@@ -96,14 +97,26 @@
   box-shadow:0 3px 14px rgba(0,0,0,.06);cursor:default;
 }
 .g-zoom-value {min-width:40px;text-align:center;font-size:11px;color:var(--g-muted);}
-.g-empty {
-  @apply absolute flex flex-col items-start rounded-2xl border p-6;
-  pointer-events:auto;left:50%;top:46%;transform:translate(-50%,-50%);
-  width:min(360px,calc(100vw - 40px));background:var(--g-surface);border-color:var(--g-border);
-  box-shadow:0 10px 34px rgba(0,0,0,.045);
+/* One real start card sits inside the graph, not above the whole workspace. */
+.g-start-card {min-height:250px;max-height:420px;}
+.g-start-card .g-card-head {cursor:default;}
+.g-start-heading {font-size:16px;font-weight:600;line-height:24px;margin:2px 0 5px;}
+.g-start-hint {font-size:12px;line-height:19px;color:var(--g-muted);margin:0 0 20px;}
+.g-start-composer {
+  display:flex;flex-direction:column;gap:10px;
+  border:1px solid var(--g-border);border-radius:16px;
+  background:var(--g-surface);padding:12px;
 }
-.g-empty strong {font-weight:600;font-size:16px;line-height:24px;}
-.g-empty p {font-size:13px;line-height:21px;color:var(--g-muted);margin:8px 0 18px;}
+.g-start-composer:focus-within {border-color:var(--g-accent);}
+.g-start-composer textarea {
+  display:block;width:100%;min-height:66px;max-height:160px;
+  resize:vertical;border:0;outline:0;background:transparent;
+  font:inherit;font-size:14px;line-height:22px;color:var(--g-text);
+}
+.g-start-composer textarea::placeholder {color:var(--g-muted);}
+.g-start-actions {display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.g-start-actions button:disabled {opacity:.42;cursor:default;}
+.g-start-status {font-size:11px;line-height:16px;color:var(--g-muted);max-width:240px;overflow-wrap:anywhere;}
 .g-footer {
   @apply flex shrink-0 items-center justify-between gap-3 border-t px-6;
   height:33px;background:var(--g-surface);border-color:var(--g-border);
