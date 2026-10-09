@@ -138,10 +138,13 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const target=conversationId(route);
       if(!target || target===pendingBranch.parentConversationId)
         throw new Error('Open the new ChatGPT conversation before confirming its branch.');
-      const confirmed=confirmBranch(branches,pendingBranch,target);
-      await branchStorage.save([...branches,confirmed]);
+      const [latest,currentIntent]=await Promise.all([branchStorage.list(),branchStorage.pending()]);
+      if(!currentIntent || currentIntent.id!==pendingBranch.id)
+        throw new Error('This pending branch was already dismissed or replaced.');
+      const confirmed=confirmBranch(latest,currentIntent,target);
+      await branchStorage.save([...latest,confirmed]);
       await branchStorage.clearPending();
-      branches=[...branches,confirmed];pendingBranch=null;branchError=null;
+      branches=[...latest,confirmed];pendingBranch=null;branchError=null;
       notify({type:'branch'});return confirmed;
     },
     async dismissPending() {
