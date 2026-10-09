@@ -65,6 +65,6 @@ Chat is the primary job; graph is an exploration surface:
 
 ## Open product choices
 
-Platform (web app vs browser extension), actual provider/mode support, long-form reading behavior, selection-only vs full-lineage fork mode, attachment support and tested width breakpoints remain undecided.
+**Platform decided: Chrome MV3 extension**, launched from the ChatGPT page. The extension does **not** import existing ChatGPT conversations or reuse ChatGPT login as API authentication. Current first slice implements only root chat → real gateway stream → local restore with explicit pairing; browser+live-key smoke test remains outstanding. Fork/Continue, real attachments, rich Markdown, long-form focus and responsive widths are still next-slice work.
 
 **Now → Next → Later:** finalize context/fork semantics and focus behavior → build/test card+composer and first branch → richer content, search/layout scaling, comparison.
