@@ -60,7 +60,7 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
       const original = turns[index];
       const updated = original.userId === item.id
         ? { ...original, prompt:item.text }
-        : { ...original, answer:item.text, pending:!item.text.trim() };
+        : { ...original, answer:item.text, answerBlocks:item.blocks || [], pending:!item.text.trim() };
       if (original.prompt === updated.prompt && original.answer === updated.answer) return;
       turns[index] = updated;
       notify({ type:'patch', turnId:updated.id });
