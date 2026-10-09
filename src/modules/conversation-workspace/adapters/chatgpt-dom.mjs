@@ -1,11 +1,12 @@
 import { backfillHistory } from './history.mjs';
+import { extractAssistantContent } from './response-content.mjs';
 
 // Read only rendered ChatGPT message DOM. Never reach into React state,
 // cookies, hidden endpoints or model context. Site markup varies by cohort.
 const TURN_SELECTOR = '[data-testid^="conversation-turn-"],[data-turn-id][data-turn]';
 const ROLE_SELECTOR = '[data-message-author-role],[data-conversation-role]';
 const GROUP_SELECTOR = '[data-turn-key]';
-const RESPONSE_CONTENT = '[data-testid="assistant-message"],.markdown,.prose';
+const RESPONSE_CONTENT = '.markdown,.prose,[data-testid="assistant-message"]';
 const USER_CONTENT = '[data-testid="user-message"],[data-user-message-bubble],.user-message-bubble-color,.whitespace-pre-wrap';
 
 const normalizedRole = value => value === 'user' || value === 'assistant' ? value : null;
@@ -76,8 +77,10 @@ export function collectMessages(root) {
     const id = idOf(node,role,result.length);
     if (seen.has(id)) continue;
     seen.add(id);
-    const source = readSource(node,role);
-    result.push({ id, role, text:(source.textContent || '').trim(), element:node, source });
+    const extracted=role==='assistant'?extractAssistantContent(node):null;
+    const source=extracted?.source || readSource(node,role);
+    result.push({id,role,text:extracted?.text ?? (source.textContent || '').trim(),
+      blocks:extracted?.blocks || [],element:node,source});
   }
   if (!result.some(row => row.role === 'user')) {
     // Some renderer variants put both roles under a stable user turn key,
@@ -99,9 +102,10 @@ export function collectMessages(root) {
         // A container containing both roles cannot be treated as assistant
         // output: that would duplicate the user's prompt as a fake answer.
         if (source === group || source.contains?.(user)) source = marker;
+        const answer=extractAssistantContent(source);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
-          text:(source.textContent||'').trim(),element:source,source
+          text:answer.text,blocks:answer.blocks,element:source,source:answer.source
         });
       }
     }
@@ -174,10 +178,11 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     for (const id of pending) {
       const previous = nodes.get(id);
       if (!previous) continue;
-      const source = readSource(previous.element,previous.role);
-      const text = (source.textContent || '').trim();
+      const extracted=previous.role==='assistant'?extractAssistantContent(previous.element):null;
+      const source=extracted?.source || readSource(previous.element,previous.role);
+      const text = extracted?.text ?? (source.textContent || '').trim();
       if (text !== previous.text) {
-        const updated = { ...previous,text,source };
+        const updated = { ...previous,text,source,blocks:extracted?.blocks || [] };
         nodes.set(id,updated);
         targetIds.set(source,id);
         onPatch(updated);
