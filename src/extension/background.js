@@ -1,3 +1,7 @@
+// This extension stores only layout metadata. Allow its isolated content script
+// to read positions even when upgrading from the old trusted-only token store.
+chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
+  .catch(() => {});
 // Toolbar action toggles the view in the current ChatGPT tab.
 // No background conversation access, network requests, or API key.
 chrome.action.onClicked.addListener(async tab => {
