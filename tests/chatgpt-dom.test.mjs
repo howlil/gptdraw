@@ -168,3 +168,25 @@ test('native stable turn key takes precedence over recycled conversation-turn in
   const result=collectMessages(main);
   assert.equal(result[0].id,'user:stable-key-42');
 });
+
+test('assistant role metadata nested under turn recovers the sibling rendered answer',()=>{
+  const markdown={textContent:'Actual answer with multiple paragraphs',
+    parentElement:{closest:()=>null},querySelectorAll:()=>[]};
+  let wrapper;
+  const role={
+    getAttribute:key=>key==='data-message-author-role'?'assistant':null,
+    querySelector:()=>null,querySelectorAll:()=>[],textContent:'Worked for 4m 2s',
+    closest:()=>wrapper
+  };
+  wrapper={
+    getAttribute:key=>key==='data-testid'?'conversation-turn-2':null,
+    querySelectorAll:selector=>selector.includes('data-message-author-role')?[role]:
+      selector==='.markdown'?[markdown]:[],
+    querySelector:selector=>selector==='.markdown'?markdown:
+      selector.includes('[data-message-author-role]')?role:null
+  };
+  const main={querySelectorAll:selector=>selector.includes('conversation-turn')?[wrapper]:[]};
+  const rows=collectMessages(main);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].text,'Actual answer with multiple paragraphs');
+});
