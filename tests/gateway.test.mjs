@@ -45,3 +45,15 @@ test('invalid request content is rejected before upstream call', () => withGatew
   });
   assert.equal(response.status, 400);
 }));
+
+test('SSE parser preserves CRLF framing split between chunks', async () => {
+  const bytes = new TextEncoder();
+  const stream = new ReadableStream({ start(controller) {
+    controller.enqueue(bytes.encode('data: {"type":"delta","text":"Hi"}\\r'));
+    controller.enqueue(bytes.encode('\\n\\r\\n'));
+    controller.close();
+  } });
+  const events = [];
+  await consumeSSE(stream, item => events.push(item));
+  assert.deepEqual(events, [{ type: 'delta', text: 'Hi' }]);
+});
