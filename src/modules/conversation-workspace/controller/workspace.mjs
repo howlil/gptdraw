@@ -7,30 +7,49 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
   let messages = [], turns = [], positions = {};
   let running = false, storeTimer = 0, generation = 0;
   let observer = null;
-  const notify = () => onUpdate({ route, turns, positions });
-  const refresh = () => { turns = pairMessages(messages); notify(); };
+  let messageIndex = new Map(), turnIndex = new Map();
+  const notify = change => onUpdate({ route, turns, positions }, change);
+  const refresh = () => {
+    turns = pairMessages(messages);
+    messageIndex = new Map(messages.map((m,i) => [m.id,i]));
+    turnIndex = new Map();
+    turns.forEach((turn,i) => {
+      turnIndex.set(turn.userId,i);
+      if (turn.assistantId) turnIndex.set(turn.assistantId,i);
+    });
+    notify({ type:'snapshot' });
+  };
   async function loadRoute(path) {
     route = routeKey(path);
     const seq = ++generation;
     positions = {};
     messages = [];
     turns = [];
-    notify();
+    messageIndex.clear();turnIndex.clear();
+    notify({ type:'route' });
     try {
       const restored = await layoutStorage.read(route);
-      if (seq === generation) { positions = restored; notify(); }
+      if (seq === generation) { positions = restored; notify({ type:'layout' }); }
     } catch {
       // Native conversation reading remains usable if layout storage fails.
-      if (seq === generation) notify();
+      if (seq === generation) notify({ type:'layout' });
     }
   }
   const callbacks = {
     onSnapshot(items) { messages = items; refresh(); },
     onPatch(item) {
-      const i = messages.findIndex(entry => entry.id === item.id);
-      if (i === -1) { observer?.refresh(); return; }
+      const i = messageIndex.get(item.id);
+      if (i === undefined) { observer?.refresh(); return; }
       messages[i] = item;
-      refresh();
+      const index = turnIndex.get(item.id);
+      if (index === undefined) { refresh(); return; }
+      const original = turns[index];
+      const updated = original.userId === item.id
+        ? { ...original, prompt:item.text }
+        : { ...original, answer:item.text, pending:!item.text.trim() };
+      if (original.prompt === updated.prompt && original.answer === updated.answer) return;
+      turns[index] = updated;
+      notify({ type:'patch', turnId:updated.id });
     },
     onRoute(path) { loadRoute(path); }
   };
@@ -53,7 +72,7 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
       const point = safePoint(candidate);
       if (!point || !turns.some(turn => turn.id === id)) return;
       positions = { ...positions, [id]: point };
-      notify(); save();
+      notify({ type:'position',turnId:id }); save();
     },
     async persist() {
       clearTimeout(storeTimer);
