@@ -40,3 +40,34 @@ export function layoutPoint(index) {
   // A horizontal reading spine. Positions can be customized by dragging cards.
   return { x: 130 + index * 476, y: 140 + (index % 2) * 34 };
 }
+
+
+// Keep canvas positions stable when lazy loading prepends older turns.
+// Prior positions win for existing cards; explicit user-dragged positions
+// override both. New cards are placed relative to their existing neighbors.
+export function stabilizeLayout(turns, previous = new Map(), stored = {}) {
+  const result = new Map(previous);
+  for (const turn of turns) {
+    const saved = safePoint(stored[turn.id]);
+    if (saved) result.set(turn.id, saved);
+  }
+  for (let i=0;i<turns.length;i++) {
+    const turn=turns[i];
+    if (result.has(turn.id)) continue;
+    let anchor=-1;
+    for (let right=i+1;right<turns.length;right++) {
+      if (result.has(turns[right].id)) {anchor=right;break;}
+    }
+    if (anchor<0) {
+      for (let left=i-1;left>=0;left--) {
+        if (result.has(turns[left].id)) {anchor=left;break;}
+      }
+    }
+    if (anchor<0) result.set(turn.id,layoutPoint(i));
+    else {
+      const base=result.get(turns[anchor].id);
+      result.set(turn.id,{x:base.x+(i-anchor)*476,y:layoutPoint(i).y});
+    }
+  }
+  return result;
+}
