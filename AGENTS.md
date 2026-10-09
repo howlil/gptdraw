@@ -17,11 +17,11 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 **gptdraw is a Chrome MV3 extension that projects the ChatGPT conversation already open in the browser into a branching/spatial canvas.** ChatGPT owns the conversation, model, user session, native composer, streaming and any native branching. gptdraw owns its overlay, DOM adapter, graph projection, navigation and local layout metadata.
 
 - **No OpenAI API key, model gateway, ChatGPT undocumented API, session scraping or account login recreation.**
-- The **only activation entry** is Chrome's extension toolbar icon (`chrome.action`). Never add a floating Graph launcher to chatgpt.com.
+- **Automatically show gptdraw when ChatGPT loads**, replacing only chat main; Chrome's extension toolbar icon toggles graph/native modes. **Back to ChatGPT** restores native UI and persists that choice for the current tab session. Never add a floating Graph launcher.
 - DOM access happens in an **isolated content script**, observing visible turns. **Keep native sidebar/navigation fully usable**: draw the canvas only inside the computed ChatGPT `main` bounding box. Never hide/move/delete ChatGPT's React-owned messages or sidebar. User-initiated Start Card submission may populate the visible native ChatGPT composer and click its real Send control; do not call hidden APIs.
-- Model messages are not copied into extension storage. Layout only (route-specific positions) is stored locally. Older turns may be held in *volatile memory* during progressive native scroll backfill; cancel backfill on route change/close and restore the native user's scroll.
+- Model messages are not copied into extension storage. Layout only (route-specific positions) is stored locally. Assistant Markdown is projected as safe structured text, never copied as raw executable HTML. Older turns may be held in *volatile memory* during progressive native scroll backfill; cancel backfill on route change/close and restore the native user's scroll.
 - An action is enabled only if its real native ChatGPT DOM target exists. Empty/new chats show exactly **one functional Start Card** instead of a full-screen empty modal. Native send fallback must preserve the unsent draft. No fake Fork, attachment, model selection, sources or thinking.
-- Canvas preserves the approved Dialogue design in **monochrome black/white light/dark**: right user bubble / left assistant content / no avatars. One graph card equals one user prompt and the following assistant response.
+- Canvas preserves the approved Dialogue prototype in monochrome: ~366px cards, compact numbered header, user bubble on right, structured assistant content on left, inline composer for latest card and source/continue actions without fake Fork. Initial camera focuses latest at readable zoom; Fit is optional. One graph card equals one user prompt and the following assistant response.
 
 ## Routing
 

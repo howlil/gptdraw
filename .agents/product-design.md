@@ -24,7 +24,7 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 
 ## User-job graph
 
-**Now / corrected first slice:** open conversation → click the Chrome extension toolbar icon (no page floating trigger) → replace only conversation main (sidebar stays visible) → read source-derived turns and live text changes → pan/zoom/focus → return to native message. **If no turns are detected, render one Start Card in the graph** with textarea and a native ChatGPT Send bridge; if native submission is unavailable, preserve the draft and hand off to ChatGPT. For old chats, walk toward the earliest DOM-loadable user turn without covering sidebar, preserve the original scroll position, and retain virtualized messages in memory while canvas is open. Reopen retains card positions.
+**Now / corrected first slice:** open ChatGPT → automatically show graph (no page floating trigger) → replace only conversation main (sidebar stays visible) → read source-derived turns and live text changes → pan/zoom/focus → return to native message. **If no turns are detected, render one Start Card in the graph** with textarea and a native ChatGPT Send bridge; if native submission is unavailable, preserve the draft and hand off to ChatGPT. For old chats, walk toward the earliest DOM-loadable user turn without covering sidebar, preserve the original scroll position, and retain virtualized messages in memory while canvas is open. Back to ChatGPT restores native chat and keeps that preference for the tab; the Chrome toolbar icon toggles. Reopen retains card positions.
 
 **Next:** verify native branch action and route changes → store parent/child conversation **metadata**, and show genuine fork edges with source provenance. Confirm behavior using live ChatGPT manual tests before claiming automatic branching.
 
@@ -43,7 +43,8 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 
 - Black/white light and dark themes (no lavender/cobalt), follow ChatGPT theme if explicit; otherwise OS.
 - UI entry/hover ~150ms only. Per-token response changes and pan/zoom are synchronous/incremental.
-- Historical scanning is progressive and cancellable; success means *earliest DOM-loadable* messages, not guaranteed account-level first message. Do not cross to unrelated chat histories from the sidebar.
+- Historical scanning traverses native conversation up and down, merges virtualized messages into RAM and remains cancellable; success means *DOM-loadable* messages, not guaranteed account-level first message.
+- Default focus latest card at readable scale; Fit is explicit, with Find Card and searchable Outline. Rich cards follow the supplied Dialogue HTML prototype, but no fake model/fork/attachments. Do not cross to unrelated chat histories from the sidebar.
 
 ## Questions still open
 

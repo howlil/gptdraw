@@ -21,9 +21,9 @@ npm run build
 1. Open `chrome://extensions`, switch on **Developer mode**.
 2. Click **Load unpacked**, select the generated **`gptdraw/dist/` folder** (not the repo root).
 3. Open or refresh `https://chatgpt.com/c/...`.
-4. Click the **gptdraw icon in the Chrome extension toolbar**. If needed, pin gptdraw from Chrome's Extensions menu. There is **no floating Graph button** on the ChatGPT page.
-5. Read the canvas while keeping ChatGPT's sidebar accessible; drag card headers, pan, zoom or return to the original ChatGPT message. **If no conversation exists, the canvas displays one Start Card** with a message input and Send. It delegates to ChatGPT's native composer; if automatic submission cannot be verified, your prepared draft remains in ChatGPT for manual sending.
-6. Select **Compose in ChatGPT** to close the canvas and focus ChatGPT's actual native composer.
+4. **gptdraw opens automatically** when you navigate to ChatGPT. The Chrome extension toolbar icon also toggles graph/native view; there is **no floating Graph button** on the ChatGPT page.
+5. Read the canvas while keeping ChatGPT's sidebar accessible. The initial view **focuses the latest card at readable scale**, rather than fitting the entire graph into miniature 40% text. Use **Fit** only for overview, and Find Card / Outline to navigate large histories. Drag card headers, pan, zoom or return to native source. **If no conversation exists, the canvas displays one Start Card** with a message input and Send. It delegates to ChatGPT's native composer; if automatic submission cannot be verified, your prepared draft remains in ChatGPT for manual sending.
+6. Select **Back to ChatGPT** or the close button to restore the native chat UI. This choice persists for the current tab session; click the extension toolbar icon to return to gptdraw. The latest card also provides a compact follow-up composer that delegates Send to the real ChatGPT composer.
 7. Return to the same chat and reopen Graph: the canvas restores your saved node positions from `chrome.storage.local`.
 
 **No API key or gateway setup.** You must already be logged in to ChatGPT in the host tab. The extension does not create a ChatGPT subscription or access model APIs.
@@ -53,9 +53,9 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 ## What works now
 
 - Reads visible user/assistant turns from ChatGPT markup, including wrapper `data-turn`, message-role fallback, and grouped `data-turn-key` exchanges; one user question + following assistant answer per card. Initial `0 turns` on a populated conversation was a role-parser bug addressed in this update.
-- Mirrors current response text changes through MutationObserver + requestAnimationFrame batching without rereading the full DOM on every token.
-- For **older/long conversations**, automatically walks the native conversation scroll container toward the earliest loadable messages, yielding between steps, then restores the previous scroll position. History turns collected during virtualization are held in memory only; loading can be cancelled when closing or changing chat. The workspace shows progress and a clear unavailable/limited status.
-- Toolbar-icon-only activation and main-area-only overlay that preserves ChatGPT sidebar/navigation. Sequential connectors; pan/zoom, drag, focus, **First / Latest jump navigation**, Fit, native source navigation and a functioning single Start Card for empty chats. Existing cards retain their spatial positions when older messages are prepended.
+- Extracts actual assistant Markdown blocks (headings, paragraphs, lists, code, tables) instead of treating reasoning duration labels like `Worked for 40s` as the response. Mirrors response changes through MutationObserver and rAF batching without scanning the full conversation on every token.
+- For **older/long conversations**, progressively traverses the native conversation scrollport **upward and then downward** to collect lazy-loaded or virtualized messages, yielding between steps, then restores the previous scroll position. History turns collected during virtualization are held in memory only; loading can be cancelled when closing or changing chat. The workspace shows progress and a clear unavailable/limited status.
+- Automatic activation on ChatGPT with native-view restore and Chrome-toolbar toggle; main-area-only overlay preserves ChatGPT sidebar/navigation. Sequential connectors; pan/zoom, drag, focus, **First / Latest jump navigation**, Fit, native source navigation and a functioning single Start Card for empty chats. Existing cards retain their spatial positions when older messages are prepended.
 - Local card-position persistence scoped to each ChatGPT conversation route. Chat text is not stored by the extension.
 - Shadow DOM isolation; **black-and-white light/dark design**, following ChatGPT's explicit theme when detected and OS preference otherwise; subtle entry/hover transitions, no animation on streaming/pan/zoom; keyboard Escape close.
 
@@ -63,9 +63,9 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 
 - DOM selectors are version-sensitive. **Not live-tested on the latest authenticated ChatGPT web UI in this environment.** If ChatGPT changes markup, update `adapters/chatgpt-dom.mjs` after inspecting the real page.
 - Sequential connectors are **not native branch edges**. The native Fork/Branch action, cross-conversation lineage and quote anchoring are future vertical slices.
-- First slice projects **plain text** using `textContent`, not full rich HTML, code highlighting, ChatGPT citations or internal model reasoning.
+- Response cards use a safe structured-text projection from rendered Markdown (headings/paragraphs/lists/code/tables). They do **not** copy raw HTML, fully reproduce arbitrary interactive ChatGPT blocks, citations, or hidden reasoning.
 - The Start Card uses a user-triggered native ChatGPT composer bridge; it does **not** call AI APIs. Native DOM-driven Send can fail after ChatGPT UI changes, in which case it retains the drafted message for manual sending.
-- **History boundary:** the extension scrolls the *current open conversation*, not the list of separate chats in the sidebar. It can only collect messages that ChatGPT actually loads into the rendered DOM. Browser/network virtualization or removed messages may prevent reaching the true first turn; no private ChatGPT history API is called, and no messages are saved permanently by gptdraw.
+- **History boundary:** the extension scrolls the *current open conversation* in both directions, not the list of separate chats in the sidebar. A stable DOM does not prove the entire account history was scanned. It can only collect messages that ChatGPT actually loads into the rendered DOM. Browser/network virtualization or removed messages may prevent reaching the true first turn; no private ChatGPT history API is called, and no messages are saved permanently by gptdraw.
 - This extension has not yet been manually smoke-tested on a real logged-in ChatGPT page. Automated checks use deterministic fixtures and production build checks.
 
 **After updating an unpacked extension:** run `npm run build`, then open `chrome://extensions` → click **Reload** on gptdraw, and refresh your ChatGPT tab. Otherwise Chrome may keep the previous content script.

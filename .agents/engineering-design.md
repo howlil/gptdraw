@@ -10,6 +10,7 @@
     content script: src/content/main.mjs
                  │
                  ├── adapters/chatgpt-dom.mjs     # MutationObserver + DOM parsing
+                 ├── adapters/response-content.mjs # safe visible Markdown block extraction
                  ├── adapters/history.mjs         # cancellable native scroll backfill
                  ├── core/graph.mjs               # prompt/reply pairing; pure identities
                  ├── core/history.mjs             # virtualized snapshot merge
@@ -44,7 +45,8 @@ gptdraw/
         core/history.mjs          # merge historical DOM pages into RAM-only projection
         adapters/
           chatgpt-dom.mjs         # DOM selector/mutation compatibility
-          history.mjs             # older-turn scrolling + progress/cancellation
+          history.mjs             # two-way native scroll + progress/cancellation
+          response-content.mjs    # assistant heading/paragraph/list/code/table projection
           native-composer.mjs     # user-initiated native editor/Send bridge
           metadata.mjs            # layout only, versioned chrome.storage keys
         controller/workspace.mjs  # conversation projection and view lifecycle
@@ -63,10 +65,12 @@ gptdraw/
 
 - **DOM observer** selects the active conversation `main` (or role-based fallback) and attaches to that subtree. Detection order: wrapper `data-turn`, nested/bare `data-message-author-role` or `data-conversation-role`, then a conservative `data-turn-key` grouped exchange fallback using a real user bubble. A missing user marker is never reconstructed from an assistant response. Its MutationObserver groups changes to one `requestAnimationFrame`. For character data changes, reread only the impacted turn; rescan message wrappers only on structural changes or route switches. Watch body direct children for host remounts.
 - **Projection:** index native message IDs and their owning turn. Recompute prompt/reply pairs only when message structure changes; streaming patches update the matching turn and card directly in constant lookup work. Never query the whole page on each token.
-- **Renderer:** one stable card element per user-turn ID; update `textContent` for changed assistant response. Do not `innerHTML` or rebuild all cards every event.
-- **History:** on an existing `/c/` route, discover the native conversation scrollport using message ancestors (never the sidebar), progressively set its scroll to the earliest loaded position and await DOM lazy loading. Stop at a stable top, cancellation, or a bounded attempt count. Merge historical visible snapshots into volatile RAM; do not persist chat content. Preserve the prior distance from the bottom after backfill, and never restore scroll after route cancellation. A failed/unavailable scrollport must remain visible as a limitation.
+- **Renderer:** one stable card element per user-turn ID; update only changed typed answer blocks (Markdown heading, paragraph, list, code, table) with textContent. Do not `innerHTML` or rebuild all cards every event.
+- **History:** on an existing `/c/` route, discover the native conversation scrollport using message ancestors (never the sidebar). Scan progressively UP to reach lazy-loaded older messages, and DOWN to collect later virtualized pages; cumulative RAM-only count is fed back to the adapter. Never claim a stable DOM proves complete account history. Stop at a stable top, cancellation, or a bounded attempt count. Merge historical visible snapshots into volatile RAM; do not persist chat content. Preserve the prior distance from the bottom after backfill, and never restore scroll after route cancellation. A failed/unavailable scrollport must remain visible as a limitation.
 - **Stable canvas placement:** maintain position by turn ID in a canvas-local map. When older messages prepend during backfill, place new cards to the left of known nodes without shifting existing cards; provide First/Latest navigation. Layout metadata still stores only user-overridden coordinates.
 - **Canvas:** CSS transform pan/zoom and lightweight SVG paths. The workspace is bounded to the real ChatGPT `main.getBoundingClientRect()`; measure again when sidebar/main dimensions change. Never cover native sidebar/navigation. Avoid giant rasterized planes and reparsing markdown for each streamed token. Manual positions persist at a debounced rate.
+- **Camera:** default to latest turn focused at readable 100% scale; Fit only by user request, Find Card + Outline for navigation, stable coordinates during prepend.
+- **Activation:** content script starts overlay automatically unless user selected native mode in sessionStorage; toolbar toggles and Back to ChatGPT persists normal mode for this tab. No floating launcher.
 - **CSS:** strictly black/white semantic tokens in light/dark mode, short open/hover transitions only; no motion on streaming, panning or zooming. Tailwind compiled/minified at build; inject into closed Shadow DOM via local stylesheet. No runtime Tailwind, React, model SDK, GL libraries, or remote code.
 - **Beautiful UI:** component patterns and optional sourced primitives only, adapted to real data. Upstream demo/React components are **not** currently installed; do not pretend otherwise.
 
@@ -88,7 +92,7 @@ gptdraw/
 | Streaming mutations | Observer test proving text delta patch does **not** rescan the conversation |
 | Old history | Bounded scroller/backfill tests for earliest loadable turn, virtualized pages, cancellation and scroll restore |
 | Canvas placement | Unit regression for stable positions across prepend and first/latest navigation availability |
-| Overlay lifecycle | Chrome toolbar icon only (no DOM launcher); close/reopen observer re-subscription |
+| Overlay lifecycle | Auto-activate on ChatGPT, native-mode session preference, Chrome toolbar toggle, back/close and observer re-subscription (no DOM launcher) |
 | Layout | Chrome metadata storage roundtrip, invalid coordinates rejected, route separation |
 | Build/CSP | Manifest artifact, esbuild, Tailwind output, no gateway strings |
 | Manual browser | Install `dist`, open ChatGPT, stream answer, pan/zoom/drag, reopen, SPA route changes |

@@ -4,7 +4,7 @@
 
 **ChatGPT remains the AI runtime. gptdraw is its spatial interface.** The extension canvas replaces the **visible conversation main area only** while active; the ChatGPT **sidebar, navigation and surrounding app shell remain visible and usable**. No invented provider status or hidden conversation context.
 
-User journey: **open existing ChatGPT conversation → toggle Graph → read one prompt+answer card → explore connected turns → return to the exact native source → continue composing in ChatGPT**.
+User journey: **navigate to ChatGPT → gptdraw opens automatically over the main chat area → read a focused prompt+answer card → search/outline/explore earlier turns → Back to ChatGPT restores native main → toolbar icon toggles modes**. The native-view preference persists for the tab session.
 
 One graph card = one user turn + its following assistant response (which may still be empty/streaming). The initial implementation shows a **sequential conversation spine**, not true fork lineage. Fork is future work requiring a verified native action.
 
@@ -15,7 +15,7 @@ One graph card = one user turn + its following assistant response (which may sti
 - **Text sizes/line height:** 12/16 meta, 14/20 UI, 16/24 body, 18/24 title, 20/28 large title, 28/34 page title, 36/40 display. Weights 400/500/600.
 - **Spacing scale:** 4/8/12/16/20/24/32px. No arbitrary page rhythm values.
 - **Colors — black/white only:** light background `#FAFAFA`, white card `#FFFFFF`, ink/accent `#171717`, muted `#737373`, border `#E5E5E5`, user bubble `#F0F0F0`. Dark background `#0A0A0A`, surface `#151515`, ink/accent `#FAFAFA`, border `#303030`, user bubble `#252525`. No cobalt/lavender/purple/blue styling. Follow ChatGPT's explicit light/dark class if available, else OS preference.
-- **Controls:** compact rounded pills, real SVG/Lucide-style icons with accessible names; **toolbar extension action is the sole entry trigger**—no floating launcher/button inside ChatGPT. Canvas zoom controls remain visible *inside* the main area.
+- **Controls:** compact rounded pills and SVG icons; **auto-open on ChatGPT navigation**, with Chrome toolbar as explicit toggle and **Back to ChatGPT** as a real reversible exit. No floating launcher/button inside ChatGPT. Canvas zoom controls remain visible *inside* the main area.
 
 The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CSS v4 at build time**, using reusable component CSS and a Shadow DOM-specific variable scope. Tailwind does not ship as a runtime compiler. The host ChatGPT CSS must not style extension UI, and extension CSS must not style host content.
 
@@ -27,18 +27,18 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Content stays text-first; no fake sources, thinking steps, model actions or attachment indicators.
 - Pending assistant turns show an honest waiting state.
 - Stable DOM node identity: never replace the entire card on every streaming token.
-- Content formatting: first slice projects **plain text only** from safe `textContent`. Rich code/Markdown/citations require audited native DOM extraction and separate supported rendering, not unsafe `innerHTML`.
+- Content formatting: safely project the *rendered* assistant Markdown structure as typed headings, paragraphs, lists, tables and code blocks using DOM `textContent` / `innerText`; prioritize real answer content over reasoning-time labels. Never inject copied ChatGPT `innerHTML`. Full interactive citations/source previews remain unsupported.
 
 ## Conversation canvas
 
 - Nodes represent consecutive visible turn pairs in one ChatGPT conversation. The overlay is measured against the native `main` bounding rectangle and updates when the sidebar opens/closes. Do not position the workspace across the full viewport or cover ChatGPT navigation.
 - Edges in the first slice are a **sequential reading path**, not confirmed native branch relationships.
 - Pan the empty canvas; move nodes by dragging the **header only**. Text selection, links, buttons and internal scroll do not initiate canvas dragging.
-- Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; Fit shows detected cards; Focus centers a card for reading. **First / Latest** actions navigate directly to the oldest available or newest turn without traversing the full horizontal graph.
+- Ctrl/Cmd+wheel or explicit zoom controls adjust viewport; **default to focused latest card at 100%** (rather than an unreadable 40% graph). Fit is an explicit overview command; Focus centers a card for reading. Find Card and searchable Outline provide shortcuts. **First / Latest** actions navigate directly to the oldest available or newest turn without traversing the full horizontal graph.
 - Return-to-source closes the overlay and scrolls the native ChatGPT message into view.
 - Overview zoom is for topology. At unreadable zoom, Focus is the preferred reading surface.
 - Persist user-moved card positions by ChatGPT conversation route. Do not persist answer/prompt text or call layout data a conversation backup.
-- **Historic chat backfill:** after opening an existing conversation, progressively scroll its *native conversation scrollport* toward the earliest loadable turn. Previously positioned cards retain their coordinates when an older prefix appears; older nodes extend to the left without displacing current focus. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
+- **Historic chat backfill:** after opening an existing conversation, progressively scan the *native conversation scrollport* upward to the earliest loadable turn, then downward through virtualized rows, merging all observed turn IDs without network/private APIs. Previously positioned cards retain their coordinates when an older prefix appears; older nodes extend to the left without displacing current focus. Preserve old turns in temporary in-memory graph state even if ChatGPT virtualizes them away. Yield between scroll steps, cancel on route change/close, and restore the user's previous scroll offset. Never scroll the native sidebar or claim a complete archive if ChatGPT does not expose it.
 
 ## Composer behavior
 
