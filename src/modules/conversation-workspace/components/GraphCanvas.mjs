@@ -142,6 +142,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       if(!node)continue;
       const target=entry.kind==='parent'?first:last;
       const targetCard=target?cards.get(target.id):startCard.element;
+      if(!targetCard)continue; // A virtualized source cannot expose an edge endpoint.
       const p=target?point(target,entry.kind==='parent'?0:turns.length-1):{x:130,y:140};
       const x1=entry.kind==='parent'?entry.x+node.offsetWidth:p.x+targetCard.offsetWidth;
       const y1=entry.kind==='parent'?entry.y+node.offsetHeight/2:p.y+30;
