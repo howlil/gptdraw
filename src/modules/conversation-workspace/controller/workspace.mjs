@@ -1,6 +1,6 @@
 import { pairMessages, routeKey, safePoint } from '../core/graph.mjs';
 import { mergeVisibleMessages } from '../core/history.mjs';
-import { conversationId, createPendingBranch, confirmBranch, branchRelations } from '../core/branch.mjs';
+import { conversationId, createPendingBranch, confirmBranch, branchRelations, stableMessageId } from '../core/branch.mjs';
 
 // Single owner: native conversation is truth; this controller only projects
 // visible DOM turns and persists extension-owned layout metadata.
@@ -96,6 +96,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const turn=turns.find(t=>t.id===turnId);
       if(!parentConversationId || !turn?.assistantId)
         throw new Error('Open an existing ChatGPT conversation with a completed assistant answer.');
+      if(!stableMessageId(turn.assistantId))
+        throw new Error('This response lacks a durable message ID. Native Fork remains available in ChatGPT, but gptdraw cannot safely save its lineage.');
       const node=observer?.getElement(turn.assistantId);
       if(!node?.isConnected)
         throw new Error('The source response is not currently rendered. Return to the native source and retry.');
