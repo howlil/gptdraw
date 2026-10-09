@@ -3,23 +3,17 @@ import { submitNativePrompt, findNativeComposer } from '../modules/conversation-
 import { createLayoutStorage } from '../modules/conversation-workspace/adapters/metadata.mjs';
 import { createWorkspaceController } from '../modules/conversation-workspace/controller/workspace.mjs';
 import { createConversationWorkspace } from '../modules/conversation-workspace/ConversationWorkspace.mjs';
-import { icon } from '../components/ui/icons.mjs';
 
 const HOST_ID='gptdraw-extension-root';
 if (!document.getElementById(HOST_ID)) {
-  // Stay outside ChatGPT's React tree. The host covers the viewport only for
-  // coordinate calculation; its children receive events only inside the main.
+  // Stay outside the ChatGPT React tree. The overlay is bounded to main;
+  // the only trigger is the Chrome extension toolbar action.
   const host=document.createElement('div');host.id=HOST_ID;
   host.style.cssText='position:fixed;inset:0;z-index:2147483645;pointer-events:none';
   const shadow=host.attachShadow({mode:'closed'});
   const styles=document.createElement('link');
   styles.rel='stylesheet';styles.href=chrome.runtime.getURL('content.css');
   shadow.append(styles);
-  const launch=document.createElement('button');
-  launch.type='button';launch.className='g-launcher';
-  launch.append(icon('graph',17),document.createTextNode('Graph'));
-  launch.setAttribute('aria-label','Open gptdraw conversation canvas');
-  shadow.append(launch);
   document.documentElement.append(host);
 
   const storage=createLayoutStorage(chrome.storage.local);
@@ -84,7 +78,7 @@ if (!document.getElementById(HOST_ID)) {
   }
   async function show() {
     if (visible) return;
-    visible=true;launch.hidden=true;
+    visible=true;
     alignWorkspace();
     workspace.show();
     await controller.start();
@@ -92,12 +86,11 @@ if (!document.getElementById(HOST_ID)) {
   }
   function hide() {
     if (!visible) return;
-    visible=false;workspace.hide();launch.hidden=false;
+    visible=false;workspace.hide();
     resizeObserver?.disconnect();resizeObserver=null;measuredMain=null;
     controller.persist().catch(()=>{});
     controller.stop();
   }
-  launch.addEventListener('click',()=>show().catch(console.error));
   chrome.runtime.onMessage.addListener(message=>{
     if(message?.type==='GPTDRAW_TOGGLE'){
       visible?hide():show().catch(console.error);
