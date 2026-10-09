@@ -44,9 +44,8 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
       const changed = merged.length !== messages.length || merged.some((row,i) =>
         row.id !== messages[i]?.id || row.role !== messages[i]?.role || row.text !== messages[i]?.text);
       messages = merged;
-      // Backfill checks periodically. Skip graph reconciliation when the site
-      // hasn't exposed another turn; leave per-token updates on the patch path.
       if (changed) refresh();
+      return {count:messages.length,firstId:messages[0]?.id ?? null};
     },
     onHistory(status) {
       history={...status};notify({type:'history'});
