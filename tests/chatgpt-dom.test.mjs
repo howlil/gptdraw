@@ -122,3 +122,36 @@ test('zero visible turns are distinguishable from missing native conversation',(
   const main={querySelectorAll:()=>[]};
   assert.deepEqual(collectMessages(main),[]);
 });
+
+test('grouped ChatGPT turns recover a user prompt without a nested author role',()=>{
+  const user={
+    nodeType:1,textContent:'Ask about Rust',
+    parentElement:null
+  };
+  const assistant={
+    nodeType:1,textContent:'Rust is a systems programming language',
+    parentElement:null,
+    closest:()=>null
+  };
+  const group={
+    getAttribute:key=>key==='data-turn-key'?'abc-123':null,
+    querySelector:selector=>selector==='[data-user-message-bubble]'?user:
+      selector.includes('[data-chatgpt-agent-turn-start]')?assistant:null
+  };
+  const unrelatedRole={nodeType:1,textContent:'thinking',
+    getAttribute:key=>key==='data-conversation-role'?'assistant':
+      key==='data-message-id'?'old':null,
+    querySelector:()=>null};
+  const root={
+    querySelectorAll:selector=>{
+      if(selector==='[data-turn-key]')return[group];
+      if(selector.includes('conversation-turn'))return[];
+      return [unrelatedRole];
+    }
+  };
+  const found=collectMessages(root);
+  assert.deepEqual(found.map(item=>({id:item.id,role:item.role,text:item.text})),[
+    {id:'user:turn-key:abc-123',role:'user',text:'Ask about Rust'},
+    {id:'assistant:turn-key:abc-123',role:'assistant',text:'Rust is a systems programming language'}
+  ]);
+});
