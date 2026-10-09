@@ -1,7 +1,7 @@
 import { createChatCard, updateChatCard } from './ChatCard.mjs';
 import { createComposer } from './Composer.mjs';
 
-export function createGraphCanvas({ onAsk, onRetry, onMove }) {
+export function createGraphCanvas({ onAsk, onRetry, onCancel, onMove }) {
   const container = document.createElement('div');
   container.className = 'canvas-viewport';
   container.innerHTML = '<div class="canvas-stage"></div><div class="canvas-controls"><button type="button" data-zoom="out" aria-label="Zoom out">−</button><span class="zoom-label">100%</span><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="fit" aria-label="Fit canvas">⌗</button></div>';
@@ -89,7 +89,7 @@ export function createGraphCanvas({ onAsk, onRetry, onMove }) {
       for (const [id, card] of cards) if (!ids.has(id)) { card.remove(); cards.delete(id); }
       for (const turn of turns) {
         if (!cards.has(turn.id)) {
-          const card = createChatCard(turn, { onRetry });
+          const card = createChatCard(turn, { onRetry, onCancel });
           cards.set(turn.id, card); stage.append(card);
         }
         const card = cards.get(turn.id);
