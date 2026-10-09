@@ -327,3 +327,8 @@ ol.g-block-list {list-style:decimal;}
   background:transparent;color:var(--g-text);font-size:11px;text-decoration:underline;
   text-underline-offset:2px;}
 .g-branch-compare:hover{opacity:.65;}
+
+/* The canvas uses pointer-captured pan, but a full-height reading panel must
+   restore native touch scrolling while it is open. */
+.g-viewport:has(.g-inspection:not([hidden])) {touch-action:pan-y;}
+.g-inspection,.g-inspection-columns,.g-inspect-column {touch-action:pan-y;}
