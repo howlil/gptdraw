@@ -15,9 +15,9 @@ function fixture(id,role,content){
     getAttribute:attr=>attr==='data-testid'?id:null,
     matches:()=>false,
     querySelector:selector=>{
-      if(selector==='[data-message-author-role]')return roleNode;
-      if(role==='user' && selector==='[data-testid="user-message"]')return contentNode;
-      if(role==='assistant' && selector.startsWith('.markdown'))return contentNode;
+      if(selector.includes('[data-message-author-role]'))return roleNode;
+      if(role==='user' && selector.includes('[data-testid="user-message"]'))return contentNode;
+      if(role==='assistant' && selector.includes('.markdown'))return contentNode;
       return null;
     },
     contains:other=>other===node,
@@ -61,8 +61,8 @@ test('DOM observer patches changed turn without full rescan per token',()=>{
     app.start(); frames.shift()();
     const initial=scans;
     ai.querySelector=selector=>
-      selector==='[data-message-author-role]'?{getAttribute:()=> 'assistant',textContent:'AB'}:
-      selector.startsWith('.markdown')?{textContent:'AB'}:null;
+      selector.includes('[data-message-author-role]')?{getAttribute:()=> 'assistant',textContent:'AB'}:
+      selector.includes('.markdown')?{textContent:'AB'}:null;
     const target={nodeType:3,parentElement:ai};
     observers[0].callback([{type:'characterData',target}]);
     frames.shift()();
