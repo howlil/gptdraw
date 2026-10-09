@@ -2,6 +2,7 @@
 // cookies, hidden endpoints or model context. Site markup varies by cohort.
 const TURN_SELECTOR = '[data-testid^="conversation-turn-"],[data-turn-id][data-turn]';
 const ROLE_SELECTOR = '[data-message-author-role],[data-conversation-role]';
+const GROUP_SELECTOR = '[data-turn-key]';
 const RESPONSE_CONTENT = '[data-testid="assistant-message"],.markdown,.prose';
 const USER_CONTENT = '[data-testid="user-message"],[data-user-message-bubble],.user-message-bubble-color,.whitespace-pre-wrap';
 
@@ -33,7 +34,7 @@ export function findChatMain(doc) {
   const mains = [...(doc.querySelectorAll?.('main,[role="main"]') || [])];
   if (!mains.length) return doc.querySelector?.('main') || doc.querySelector?.('[role="main"]') || doc.body;
   // Prefer the primary conversation surface, not sidebars or popovers.
-  return mains.find(el => el.querySelector?.(TURN_SELECTOR) || el.querySelector?.(ROLE_SELECTOR))
+  return mains.find(el => el.querySelector?.(TURN_SELECTOR) || el.querySelector?.(ROLE_SELECTOR) || el.querySelector?.(GROUP_SELECTOR))
     || mains.find(el => el.querySelector?.('#prompt-textarea,[data-testid="composer-text-input"]'))
     || mains[0];
 }
@@ -75,6 +76,34 @@ export function collectMessages(root) {
     seen.add(id);
     const source = readSource(node,role);
     result.push({ id, role, text:(source.textContent || '').trim(), element:node, source });
+  }
+  if (!result.some(row => row.role === 'user')) {
+    // Some renderer variants put both roles under a stable user turn key,
+    // without exposing a data-message-author-role on the user bubble.
+    // Use this only when normal role-bearing user messages cannot be found.
+    const grouped = [];
+    for (const group of root.querySelectorAll(GROUP_SELECTOR)) {
+      const key = group.getAttribute?.('data-turn-key');
+      if (!key) continue;
+      const user = group.querySelector?.('[data-user-message-bubble]');
+      if (!user) continue;
+      grouped.push({
+        id:'user:turn-key:'+key,role:'user',
+        text:(user.textContent||'').trim(),element:user,source:user
+      });
+      const marker = group.querySelector?.('[data-conversation-role="assistant"],[data-chatgpt-agent-turn-start]');
+      if (marker) {
+        let source = marker.closest?.('[data-conversation-role="assistant"]') || marker.parentElement || marker;
+        // A container containing both roles cannot be treated as assistant
+        // output: that would duplicate the user's prompt as a fake answer.
+        if (source === group || source.contains?.(user)) source = marker;
+        grouped.push({
+          id:'assistant:turn-key:'+key,role:'assistant',
+          text:(source.textContent||'').trim(),element:source,source
+        });
+      }
+    }
+    if (grouped.length) return grouped;
   }
   return result;
 }
