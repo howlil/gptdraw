@@ -102,7 +102,8 @@ export function collectMessages(root) {
         // A container containing both roles cannot be treated as assistant
         // output: that would duplicate the user's prompt as a fake answer.
         if (source === group || source.contains?.(user)) source = marker;
-        const answer=extractAssistantContent(source);
+        // Group wrappers can keep rendered Markdown outside the role marker.
+        const answer=extractAssistantContent(group);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
           text:answer.text,blocks:answer.blocks,element:source,source:answer.source
