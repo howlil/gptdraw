@@ -40,7 +40,7 @@ export function createWorkspaceController({ observe, layoutStorage, onUpdate, pa
   }
   const callbacks = {
     onSnapshot(items) {
-      const merged = mergeVisibleMessages(messages,items,history.status==='loading');
+      const merged = mergeVisibleMessages(messages,items,history.status==='loading' && history.phase==='up');
       const changed = merged.length !== messages.length || merged.some((row,i) =>
         row.id !== messages[i]?.id || row.role !== messages[i]?.role || row.text !== messages[i]?.text);
       messages = merged;
