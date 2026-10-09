@@ -17,8 +17,17 @@
 
 Dialogue chat card, user bubble aligned right with a soft tint, AI answer left without avatars. Composer is a compact pill expanding for multiline/attachment. Continue and Fork create separate connected cards with provenance. Canvas is for overview/navigation; focus mode preserves reading comfort. Neutral calm minimal UI, real SVG icons, system fonts and 4px spacing rhythm.
 
-## Workflow
+## Workflow — vertical slices with stable ownership
 
-Inspect → map critical path and dependencies → plan small → test-first → implement → verify → review/iterate.
+**Understand → map owner/risk → plan a complete journey → test first → implement → verify → inspect diff → stop.**
 
-Before bootstrapping a runtime, decide web app vs extension, AI transport and persistence. Do not scaffold a hierarchy of empty folders.
+New application code follows the fixed `src/modules/conversation-workspace/` ownership buckets in [.agents/engineering-design.md](.agents/engineering-design.md): `core/` (conversation invariants/context), `adapters/` (external transport/storage), `controller/` (per-workspace orchestration), `components/` (Dialogue card, composer, graph). `ConversationWorkspace.tsx` is composition only. Create each folder/file only when the current end-to-end slice needs it.
+
+**Not a horizontal MVP plan.** Slices add complete user paths while maintaining the same ownership structure:
+
+1. Ask in root chat → real streaming AI response → persistent card → reload.
+2. Select a response passage → Fork → source-anchored child with correct inherited AI context → persistence/navigation.
+3. Continue selected path → compare siblings, focus/overview and graph gestures → drafts/navigation persist.
+4. Rich content/attachments → valid model context → streaming/error/retry and adaptive input.
+
+Use no dummy “production” integrations or fake completion badges. Before Slice 01, choose **standalone web vs extension**, provider/auth, and storage. Never scaffold unused architecture or move unrelated code later for aesthetics.
