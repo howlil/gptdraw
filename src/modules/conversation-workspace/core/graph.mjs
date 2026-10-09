@@ -72,3 +72,12 @@ export function stabilizeLayout(turns, previous = new Map(), stored = {}) {
   }
   return result;
 }
+
+export function isCardNearViewport(position, camera, margin=520) {
+  const {panX,panY,scale,width,height}=camera;
+  if(!Number.isFinite(scale)||scale<=0||width<=0||height<=0)return true;
+  const left=(-panX/scale)-margin,top=(-panY/scale)-margin;
+  const right=(width-panX)/scale+margin,bottom=(height-panY)/scale+margin;
+  return position.x+400>=left && position.x<=right &&
+    position.y+600>=top && position.y<=bottom;
+}
