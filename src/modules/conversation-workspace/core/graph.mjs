@@ -7,7 +7,7 @@ export function pairMessages(messages) {
     if (message.role === 'user') {
       current = {
         id: message.id, userId: message.id, assistantId: null,
-        prompt: message.text, answer: '', anchorId: message.id,
+        prompt: message.text, answer: '', answerBlocks:[], anchorId: message.id,
         pending: true
       };
       turns.push(current);
@@ -15,6 +15,7 @@ export function pairMessages(messages) {
       if (current && !current.assistantId) {
         current.assistantId = message.id;
         current.answer = message.text;
+        current.answerBlocks = message.blocks || [];
         current.pending = !message.text.trim();
       } else {
         // Orphan assistant output is not assigned a fabricated question.
