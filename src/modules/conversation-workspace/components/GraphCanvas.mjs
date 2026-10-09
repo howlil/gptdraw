@@ -31,7 +31,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   outline.append(outlineHead,outlineItems);viewport.append(outline);
   let query='',outlineOpen=false;
   const searchable=turn=>((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
-  const turnById=new Map();
+  const turnById=new Map(),turnIndexById=new Map();
   const applySearch=()=>{
     for(const [id,card] of cards){
       const turn=turnById.get(id);
@@ -90,8 +90,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     visibleQueued=false;
     const active=new Set(turns.map(t=>t.id));
     for(const [id,card] of cards){
-      const index=turns.findIndex(t=>t.id===id);
-      if(!active.has(id) || (index>=0 && !shouldMount(turns[index],index)
+      const index=turnIndexById.get(id);
+      if(!active.has(id) || (index!==undefined && !shouldMount(turns[index],index)
           && !(dragging?.id===id)
           && !card.contains(card.getRootNode()?.activeElement))){
         cardResize?.unobserve(card);card.remove();cards.delete(id);
@@ -275,9 +275,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       if(routeChanged){previousRoute=state.route;initialFocusPending=true;stablePositions.clear();}
       positions=state.positions;turns=state.turns;
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
-      if(routeChanged)turnById.clear();
+      if(routeChanged){turnById.clear();turnIndexById.clear();}
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
+        const index=turnIndexById.get(change.turnId);
+        if(index!==undefined)turnById.set(change.turnId,turns[index]);
         if(card) {
           const turn=turns[card._turnIndex];
           card._update(turn,card._turnIndex,card._turnIndex===turns.length-1);
@@ -297,7 +299,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         return;
       }
       stablePositions=stabilizeLayout(turns,stablePositions,positions);
-      turnById.clear();turns.forEach(turn=>turnById.set(turn.id,turn));
+      turnById.clear();turnIndexById.clear();
+      turns.forEach((turn,index)=>{turnById.set(turn.id,turn);turnIndexById.set(turn.id,index);});
       syncVisibleCards();
       renderOutline();
       renderBranchNodes(state.relations);
