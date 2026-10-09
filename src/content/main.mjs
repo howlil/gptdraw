@@ -52,6 +52,7 @@ if (!document.getElementById(HOST_ID)) {
   const workspace=createConversationWorkspace({
     onClose:hide,
     onSource:async id=>{
+      controller.pauseHistory();
       let element=controller.getSource(id);
       if(!element?.isConnected)element=await revealNativeSource(document,id);
       if(!element)throw new Error('Source not currently available in the rendered ChatGPT history.');
