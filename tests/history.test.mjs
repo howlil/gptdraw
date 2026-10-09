@@ -63,7 +63,7 @@ test('cancelled backfill does not alter native scroll position on route change',
     wait:async()=>controller.abort(),maxSteps:50
   });
   assert.equal(result,'cancelled');
-  assert.equal(scroller.scrollTop,0,'leave restoration to the new native route');
+  assert.equal(scroller.scrollTop,672,'cancellation leaves the last progressive scroll location, without restoring old-route offset');
   assert.equal(status.at(-1),'cancelled');
 });
 
