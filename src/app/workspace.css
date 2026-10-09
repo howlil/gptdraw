@@ -236,3 +236,23 @@
 .g-search-hit {border-color:var(--g-text);}
 @media(max-width:760px){.g-find-input{width:100px;}.g-history-status{display:none;}}
 @media(max-width:570px){.g-find-input{display:none;}.g-turn-count{display:none;}}
+
+/* Native conversation branches are metadata-only until the user confirms. */
+.g-branch-notice {display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:8px 18px;background:var(--g-panel);border-bottom:1px solid var(--g-border);
+  color:var(--g-text);font-size:12px;line-height:18px;}
+.g-branch-notice button {border:1px solid var(--g-border);background:var(--g-surface);
+  border-radius:999px;padding:5px 10px;color:var(--g-text);font-size:11px;}
+.g-branch-notice button:hover {border-color:var(--g-text);}
+.g-branch-error,.g-fork-status {font-size:11px;line-height:17px;color:var(--g-muted);}
+.g-fork-status:empty {display:none;}
+.g-fork-status {display:block;margin-top:6px;}
+.g-branch-node {position:absolute;width:230px;min-height:78px;padding:14px;
+  display:flex;flex-direction:column;gap:7px;text-align:left;
+  border:1px dashed var(--g-muted);border-radius:12px;
+  background:var(--g-surface);color:var(--g-text);cursor:pointer;}
+.g-branch-node strong {font-size:13px;font-weight:600;}
+.g-branch-node span {font-size:11px;color:var(--g-muted);}
+.g-branch-node:hover {border-style:solid;box-shadow:0 6px 18px rgba(0,0,0,.05);}
+.g-text-action:disabled {opacity:.4;cursor:wait;}
+.g-node-footer {flex-wrap:wrap;gap:10px;}
