@@ -122,10 +122,24 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
   }
   return {
     element:viewport,
-    reconcile(state){
+    reconcile(state, change){
       const routeChanged=previousRoute!==state.route;
       if(routeChanged){previousRoute=state.route;autoFit=true;}
       positions=state.positions;turns=state.turns;
+      if(!routeChanged && change?.type==='patch'){
+        const card=cards.get(change.turnId);
+        if(card)card._update(turns[card._turnIndex]);
+        return; // Constant-work streaming update: no layout scan, edge rebuild or DOM churn.
+      }
+      if(!routeChanged && change?.type==='position'){
+        const card=cards.get(change.turnId);
+        const p=positions[change.turnId];
+        if(card && p){
+          card.style.left=p.x+'px';card.style.top=p.y+'px';
+          queueEdges();
+        }
+        return;
+      }
       const active=new Set(turns.map(t=>t.id));
       for(const [id,card] of cards) if(!active.has(id)){card.remove();cards.delete(id);}
       turns.forEach((turn,index)=>{
@@ -135,6 +149,7 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
           card.tabIndex=-1;
           cards.set(turn.id,card);stage.append(card);
         } else card._update(turn);
+        card._turnIndex=index;
         if(!dragging||dragging.id!==turn.id){
           const p=point(turn,index);
           card.style.left=p.x+'px';card.style.top=p.y+'px';
