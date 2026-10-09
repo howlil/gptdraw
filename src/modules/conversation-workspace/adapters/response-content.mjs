@@ -6,6 +6,7 @@ const TEXT_KINDS={H1:'heading',H2:'heading',H3:'heading',H4:'heading',P:'paragra
 const textOf=node=>String(node?.innerText ?? node?.textContent ?? '').trim().slice(0,120000);
 const isStatusOnly=text=>/^(worked for|thought for|thinking for)\s+\d+/i.test(text);
 export function safeLink(raw) {
+  if(typeof raw!=='string'||!raw.trim())return null;
   try {
     const value=new URL(raw,'https://chatgpt.com/');
     return ['https:','http:'].includes(value.protocol)?value.href:null;
