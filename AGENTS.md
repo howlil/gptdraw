@@ -2,7 +2,7 @@
 
 Repository-wide SWE workflow and routing. **.agents/ contains working documentation, not installable skills.** Keep decisions with their single owner; do not create a parallel docs/ tree or per-task planning files.
 
-**Source of truth:** current user request → existing code/config/tests and observed runtime (for actual behavior) → this workflow → [DESIGN.md](DESIGN.md) for UI contract → [.agents/engineering-design.md](.agents/engineering-design.md) for architecture guidance → [.agents/product-design.md](.agents/product-design.md) for UX evidence. Architecture file paths are **proposals until implemented**, not evidence of a working stack. Never override observable code behavior with an aspirational document.
+**Source of truth:** current user request → existing code/config/tests and observed runtime (for actual behavior) → this workflow → [DESIGN.md](DESIGN.md) for UI contract → [.agents/engineering-design.md](.agents/engineering-design.md) for architecture guidance → [.agents/product-design.md](.agents/product-design.md) for UX evidence. The **current MV3 file paths and owners are implemented**, while future graph-branch feature paths remain proposals. Never override observable code behavior with an aspirational document.
 
 ## Read and route
 
@@ -44,7 +44,7 @@ The permanent `conversation-workspace` responsibility/folder contract lives in [
 
 Slice 01 is **ask → streamed AI response → persist → reload → see card in graph**, with real or explicitly approved provider integration, failure handling and tests. Later slices extend the same owners for Fork, Continue, graph navigation and rich content. This is **vertical-slice delivery**, not a reduced-quality MVP: each completed slice must be production-correct for its supported path.
 
-Before application bootstrap, resolve web vs extension, provider/auth and storage. Never put a model secret in client code or claim mock output is a real response.
+Platform is now **Chrome MV3**, with extension-origin UI, trusted service worker, chrome.storage.local and a loopback gateway. Keep OpenAI credentials server-side. A live model run still requires a configured gateway and user-owned API key.
 
 **No unsolicited refactoring:** a feature request authorizes work in its existing owner, not renaming, splitting, relocating or redesigning unrelated modules. New code must respect ownership from its first commit. If a legacy boundary blocks the requested change, explain the smallest necessary adjustment; do not start a sweeping refactor. A separate refactoring request is required for general cleanup.
 
