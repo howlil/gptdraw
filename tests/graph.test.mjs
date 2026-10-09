@@ -1,104 +1,95 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRoot, updateTurn, completeTurn, restoreTurns, rootContext } from '../src/modules/conversation-workspace/core/graph.mjs';
+import { pairMessages,routeKey,layoutPoint,safePoint } from '../src/modules/conversation-workspace/core/graph.mjs';
 import { createWorkspaceController } from '../src/modules/conversation-workspace/controller/workspace.mjs';
+import { createLayoutStorage } from '../src/modules/conversation-workspace/adapters/metadata.mjs';
 
-test('root turn identity and context are deterministic', () => {
-  const root = createRoot('  Hello graph ', 'root-1', '2026-10-09T00:00:00.000Z');
-  assert.equal(root.userMessage.text, 'Hello graph');
-  assert.deepEqual(rootContext(root), [{ role: 'user', content: 'Hello graph' }]);
-  assert.equal(root.parentId, null);
-  assert.throws(() => createRoot(' ', 'id'));
+test('each card pairs one user prompt with the following assistant output',()=>{
+  const rows=pairMessages([
+    {id:'u1',role:'user',text:'What is consistency?'},
+    {id:'a1',role:'assistant',text:'Consistency means...'},
+    {id:'u2',role:'user',text:'What about eventual consistency?'},
+    {id:'a2',role:'assistant',text:'Eventual consistency is...'}
+  ]);
+  assert.equal(rows.length,2);
+  assert.deepEqual(rows.map(x=>x.id),['u1','u2']);
+  assert.equal(rows[0].answer,'Consistency means...');
+  assert.equal(rows[1].answer,'Eventual consistency is...');
+  assert.equal(rows[0].pending,false);
+  assert.equal(rows[0].anchorId,'u1');
 });
 
-test('completion binds stable response revision and block IDs', () => {
-  const nodes = updateTurn([createRoot('hello', 'a')], 'a', { status: 'streaming', text: 'answer' });
-  const result = completeTurn(nodes, 'a');
-  assert.equal(result[0].assistant.status, 'complete');
-  assert.equal(result[0].assistant.revisionId, 'a:revision:1');
-  assert.equal(result[0].assistant.blocks[0].id, 'a:block:1');
+test('incomplete assistant reply remains visibly pending; orphan answer never invents a prompt',()=>{
+  const rows=pairMessages([
+    {id:'a0',role:'assistant',text:'Unpaired'},
+    {id:'u1',role:'user',text:'Waiting'},
+    {id:'a1',role:'assistant',text:''}
+  ]);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].pending,true);
+  assert.equal(rows[0].prompt,'Waiting');
 });
 
-test('restore marks interrupted streams as failed, preserving typed prompt', () => {
-  const original = createRoot('Persist me', 'root');
-  const recovered = restoreTurns([original]);
-  assert.equal(recovered[0].assistant.status, 'failed');
-  assert.equal(recovered[0].userMessage.text, 'Persist me');
+test('route-scoped layout keys and positions are validated',()=>{
+  assert.equal(routeKey('/c/abc-42'),'conversation:abc-42');
+  assert.equal(routeKey('/'),'route:/');
+  assert.deepEqual(layoutPoint(2),{x:1082,y:140});
+  assert.deepEqual(safePoint({x:'18',y:22}),{x:18,y:22});
+  assert.equal(safePoint({x:Infinity,y:22}),null);
+  assert.equal(safePoint({x:1e9,y:22}),null);
 });
 
-test('complete vertical controller flow persists and recovers generated answer', async () => {
-  let saved = [];
-  const storage = { load: async () => saved, save: async nodes => { saved = structuredClone(nodes); } };
-  const updates = [];
-  const assistant = { stream: async (id, messages, delta) => {
-    assert.deepEqual(messages, [{ role: 'user', content: 'Test integration' }]);
-    delta('Hello'); delta(' world');
-  } };
-  const controller = createWorkspaceController({ storage, assistant, idFactory: () => 'id-1', onChange: nodes => updates.push(nodes) });
-  await controller.init();
-  await controller.ask('Test integration');
-  assert.equal(saved[0].assistant.text, 'Hello world');
-  assert.equal(saved[0].assistant.status, 'complete');
-  const next = createWorkspaceController({ storage, assistant, onChange: () => {} });
-  await next.init();
-  assert.equal(next.snapshot()[0].assistant.text, 'Hello world');
-  assert.ok(updates.length > 2);
-});
-
-test('failed generation is kept for retry without duplicate turn', async () => {
-  let saved = [];
-  let fails = true;
-  const storage = { load: async () => saved, save: async turns => { saved = structuredClone(turns); } };
-  const assistant = { stream: async (_id, _messages, delta) => {
-    if (fails) throw new Error('Upstream unavailable');
-    delta('Recovered');
-  } };
-  const controller = createWorkspaceController({ storage, assistant, idFactory: () => 'same-id', onChange: () => {} });
-  await controller.init(); await controller.ask('Again');
-  assert.equal(saved[0].assistant.status, 'failed');
-  fails = false; await controller.retry('same-id');
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0].assistant.text, 'Recovered');
-});
-
-test('cancel stops a stream and keeps the original root for retry', async () => {
-  let saved = [];
-  let rejectStream;
-  let cancelled = false;
-  const storage = { load: async () => saved, save: async turns => { saved = structuredClone(turns); } };
-  const assistant = {
-    stream: () => new Promise((_resolve, reject) => { rejectStream = reject; }),
-    cancel: () => { cancelled = true; rejectStream(new Error('Request cancelled.')); }
-  };
-  const controller = createWorkspaceController({ storage, assistant, idFactory: () => 'cancel-id', onChange: () => {} });
-  await controller.init();
-  const pending = controller.ask('Stop this');
-  await new Promise(resolve => setTimeout(resolve, 10));
-  controller.cancel('cancel-id');
-  await pending;
-  assert.equal(cancelled, true);
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0].assistant.status, 'cancelled');
-});
-
-test('failed initial Chrome storage write rolls back the unsaved root', async () => {
-  let fail = true, saved = [];
-  let index = 0;
-  const storage = {
-    load: async () => saved,
-    save: async turns => {
-      if (fail) { fail = false; throw new Error('storage unavailable'); }
-      saved = structuredClone(turns);
-    }
-  };
-  const assistant = { stream: async (_id, _messages, delta) => delta('Saved response') };
-  const controller = createWorkspaceController({
-    storage, assistant, idFactory: () => 'root-' + ++index, onChange: () => {}
+test('metadata adapter stores positions only, not ChatGPT message content',async()=>{
+  const state={};
+  const adapter=createLayoutStorage({
+    async get(key){return {[key]:state[key]};},
+    async set(entry){Object.assign(state,entry);}
   });
-  await controller.init();
-  await assert.rejects(controller.ask('Please retain the draft'), /Could not save/);
-  assert.equal(controller.snapshot().length, 0);
-  await controller.ask('Please retain the draft');
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0].assistant.text, 'Saved response');
+  await adapter.write('conversation:test',{u1:{x:100,y:200}});
+  assert.deepEqual(await adapter.read('conversation:test'),{u1:{x:100,y:200}});
+  assert.equal(JSON.stringify(state).includes('message'),false);
+});
+
+test('controller projects visible messages, updates only layout and restores positions',async()=>{
+  let callbacks;let stopped=false, written=null, snapshot;
+  const controller=createWorkspaceController({
+    pathname:()=>'/c/test',
+    observe:cb=>{callbacks=cb;return {
+      start(){cb.onSnapshot([{id:'u1',role:'user',text:'Question'}, {id:'a1',role:'assistant',text:'Answer'}]);},
+      stop(){stopped=true;},
+      getElement(id){return id==='u1'?{id:'native'}:null;},
+      refresh(){cb.onSnapshot([{id:'u1',role:'user',text:'Question'}, {id:'a1',role:'assistant',text:'Updated'}]);}
+    };},
+    layoutStorage:{read:async()=>({u1:{x:100,y:200}}),write:async(route,points)=>{written={route,points};}},
+    onUpdate:state=>{snapshot=state;}
+  });
+  await controller.start();
+  assert.equal(snapshot.turns[0].answer,'Answer');
+  assert.deepEqual(snapshot.positions.u1,{x:100,y:200});
+  callbacks.onPatch({id:'a1',role:'assistant',text:'Updated in place'});
+  assert.equal(snapshot.turns[0].answer,'Updated in place');
+  controller.move('u1',{x:240,y:340});
+  await controller.persist();
+  assert.deepEqual(written,{route:'conversation:test',points:{u1:{x:240,y:340}}});
+  assert.equal(controller.getSource('u1').id,'native');
+  controller.refresh();
+  assert.equal(snapshot.turns[0].answer,'Updated');
+  controller.stop();
+  assert.equal(stopped,true);
+});
+
+test('controller moves safely across ChatGPT route changes',async()=>{
+  let cb, snapshot;
+  const controller=createWorkspaceController({
+    pathname:()=>'/c/first',
+    observe:x=>{cb=x;return{start(){x.onSnapshot([{id:'u',role:'user',text:'one'}]);},stop(){},refresh(){},getElement(){return null;}};},
+    layoutStorage:{read:async(route)=>route==='conversation:second'?{u2:{x:50,y:60}}:{},write:async()=>{}},
+    onUpdate:state=>snapshot=state
+  });
+  await controller.start();
+  cb.onRoute('/c/second');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(snapshot.route,'conversation:second');
+  assert.deepEqual(snapshot.positions,{u2:{x:50,y:60}});
+  controller.stop();
 });
