@@ -1,0 +1,18 @@
+name: Verify
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Unit and gateway integration tests
+        run: node --test tests/*.test.mjs
+      - name: Check module syntax
+        run: |
+          find extension src -name '*.mjs' -o -name '*.js' | while read file; do node --check "$file"; done
