@@ -104,6 +104,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     },
     getSource(id) { return observer?.getElement(id) || null; },
     refresh() { observer?.refresh();observer?.loadEarlier?.(); },
+    pauseHistory() { observer?.pauseHistory?.(); },
     async fork(turnId, anchor=null) {
       if(!branchStorage || !prepareFork)throw new Error('Native branching is unavailable.');
       const parentConversationId=conversationId(route);
@@ -116,6 +117,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       if(!node?.isConnected)
         throw new Error('The source response is not currently rendered. Return to the native source and retry.');
       // Do not persist a pending link unless native Branch has been discovered.
+      observer?.pauseHistory?.();
       const native=await prepareFork(node);
       const record=createPendingBranch({
         id:idFactory(),parentConversationId,sourceMessageId:turn.assistantId,
