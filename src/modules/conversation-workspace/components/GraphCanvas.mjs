@@ -3,7 +3,7 @@ import { createStartCard } from './StartCard.mjs';
 import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend }) {
+export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onOpenConversation }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -68,6 +68,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   let autoFit = true, edgesQueued = false, previousRoute = null, initialFocusPending = true;
   let stablePositions = new Map();
   const cards = new Map();
+  const branchNodes=new Map();
+  let branchPositions=new Map();
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   const renderTransform = () => {
     stage.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
@@ -89,13 +91,67 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       path.setAttribute('fill','none'); path.setAttribute('stroke','var(--g-edge)');
       path.setAttribute('stroke-width','1.7'); edgeLayer.append(path);
     }
+    const first=turns[0],last=turns[turns.length-1];
+    for(const [key,entry] of branchPositions){
+      const node=branchNodes.get(key);
+      if(!node)continue;
+      const target=entry.kind==='parent'?first:last;
+      const targetCard=target?cards.get(target.id):startCard.element;
+      const p=target?point(target,entry.kind==='parent'?0:turns.length-1):{x:130,y:140};
+      const x1=entry.kind==='parent'?entry.x+node.offsetWidth:p.x+targetCard.offsetWidth;
+      const y1=entry.kind==='parent'?entry.y+node.offsetHeight/2:p.y+30;
+      const x2=entry.kind==='parent'?p.x:entry.x;
+      const y2=entry.kind==='parent'?p.y+30:entry.y+node.offsetHeight/2;
+      const curve=document.createElementNS('http://www.w3.org/2000/svg','path');
+      const bend=Math.max(40,Math.abs(x2-x1)*.4);
+      curve.setAttribute('d','M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2);
+      curve.setAttribute('fill','none');curve.setAttribute('stroke','var(--g-text)');
+      curve.setAttribute('stroke-dasharray','4 5');curve.setAttribute('stroke-width','1.5');
+      edgeLayer.append(curve);
+    }
   };
+
+  function renderBranchNodes(relations) {
+    const first=turns[0],last=turns[turns.length-1];
+    const left=first?point(first,0):{x:130,y:140};
+    const right=last?point(last,turns.length-1):left;
+    const next=new Map();
+    if(relations?.parent){
+      const record=relations.parent;
+      next.set('parent:'+record.id,{conversationId:record.parentConversationId,
+        title:'Parent conversation',x:left.x-430,y:left.y+8,kind:'parent'});
+    }
+    for(const [i,record] of (relations?.children||[]).entries()){
+      next.set('child:'+record.id,{conversationId:record.childConversationId,
+        title:'Child branch '+(i+1),x:right.x+470,y:right.y+i*110,kind:'child'});
+    }
+    for(const [key,node] of branchNodes)if(!next.has(key)){
+      node.remove();branchNodes.delete(key);
+    }
+    branchPositions=next;
+    for(const [key,entry] of next){
+      let node=branchNodes.get(key);
+      if(!node){
+        node=document.createElement('button');node.type='button';
+        node.className='g-branch-node';
+        node.addEventListener('click',()=>onOpenConversation(node.dataset.conversationId));
+        branchNodes.set(key,node);stage.append(node);
+      }
+      node.dataset.conversationId=entry.conversationId;
+      node.replaceChildren();
+      const tag=document.createElement('strong');tag.textContent=entry.title;
+      const caption=document.createElement('span');caption.textContent='Open ChatGPT conversation';
+      node.append(tag,caption);
+      node.style.left=entry.x+'px';node.style.top=entry.y+'px';
+    }
+  }
   const queueEdges = () => { if (!edgesQueued) { edgesQueued=true; requestAnimationFrame(drawEdges); } };
   const fit = () => {
     const bounds = turns.map((turn,i)=>{
       const p=point(turn,i); return { x:p.x,y:p.y,w:cards.get(turn.id)?.offsetWidth||420,h:cards.get(turn.id)?.offsetHeight||260 };
     });
     if (!bounds.length) bounds.push({x:130,y:140,w:startCard.element.offsetWidth||420,h:startCard.element.offsetHeight||260});
+    for(const [key,p] of branchPositions)bounds.push({x:p.x,y:p.y,w:branchNodes.get(key)?.offsetWidth||230,h:branchNodes.get(key)?.offsetHeight||78});
     const l=Math.min(...bounds.map(x=>x.x)),t=Math.min(...bounds.map(x=>x.y));
     const r=Math.max(...bounds.map(x=>x.x+x.w)),b=Math.max(...bounds.map(x=>x.y+x.h));
     if(viewport.clientWidth < 600) {
@@ -195,7 +251,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       turns.forEach((turn,index)=>{
         let card=cards.get(turn.id);
         if(!card){
-          card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,isLatest:index===turns.length-1});
+          card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,isLatest:index===turns.length-1});
           card.tabIndex=-1;
           cards.set(turn.id,card);stage.append(card);
         } else card._update(turn,index,index===turns.length-1);
@@ -206,6 +262,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         }
       });
       applySearch();renderOutline();
+      renderBranchNodes(state.relations);
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route);
       queueEdges();
