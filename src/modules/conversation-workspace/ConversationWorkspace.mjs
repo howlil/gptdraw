@@ -7,14 +7,14 @@ export function mountConversationWorkspace(host) {
   host.innerHTML = `
     <div class="app-shell">
       <header class="app-header">
-        <div class="brand"><span class="brand-mark">✣</span><div><strong>gptdraw</strong><span>Conversation canvas</span></div></div>
-        <div class="header-tools"><span class="connection" id="connection">Connecting…</span><button id="new" type="button">+ New</button><button id="close" type="button" aria-label="Close canvas">×</button></div>
+        <div class="brand"><span class="brand-mark"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 6v8a5 5 0 0 0 5 5h5M6 10a5 5 0 0 0 5-2h5"/></svg></span><div><strong>gptdraw</strong><span>Conversation canvas</span></div></div>
+        <div class="header-tools"><span class="connection" id="connection">Connecting…</span><button id="new" type="button">+ New</button><button id="close" type="button" aria-label="Close canvas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       </header>
       <div class="canvas-host"></div>
       <footer class="app-footer"><span>Drag card header · Drag background · Ctrl/⌘ + scroll to zoom</span><span>Stored in this extension</span></footer>
       <section id="pairing" class="pairing" hidden>
         <form id="pair-form" class="pair-card">
-          <span class="pair-symbol">✣</span><h1>Connect AI gateway</h1>
+          <span class="pair-symbol"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 6v8a5 5 0 0 0 5 5h5M6 10a5 5 0 0 0 5-2h5"/></svg></span><h1>Connect AI gateway</h1>
           <p>Run the local gateway with your OpenAI API key, then enter the pairing token printed in its terminal. Your API key never enters this extension.</p>
           <label for="pair-token">Pairing token</label>
           <input id="pair-token" type="password" autocomplete="off" placeholder="Paste token" required minlength="16">
