@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | Approved product semantics: one turn/card, parent lineage, Fork/Continue, stable provenance | **Active contract for future code** | Implementation must preserve these invariants |
 | Domain ownership: conversation is truth, canvas only a visual projection | **Engineering boundary decision** | Do not store business state only in graph/UI objects |
-| Proposed `src/` layout, React Flow, storage/provider choices | **Proposal, NOT active code or mandatory folder structure** | Inspect stack and real call sites first; create owners only when needed |
+| Conversation workspace folder ownership | **Binding contract for all new application code** | Use prescribed owners from the first implementation; do not create empty scaffolds |
+| React Flow, runtime, model/provider/storage | **Unresolved technology decisions** | Confirm platform and real I/O boundary before implementing an end-to-end slice |
 | Old HTML prototype | **Design reference** | Mock AI, local filename handling and in-memory graph are not production behavior |
 
 Follow root [AGENTS.md](../AGENTS.md) for workflow, risk-based tests, scope and Git rules. Follow root [DESIGN.md](../DESIGN.md) for UI. Do not create an additional `architecture.md` or planning document unless a genuinely independent contract becomes necessary.
@@ -44,31 +45,69 @@ Follow root [AGENTS.md](../AGENTS.md) for workflow, risk-based tests, scope and 
 - Provider retries/idempotency prevent duplicate child turns. Errors preserve prompts.
 - Token budget overflow must have a transparent truncation/summarization policy; unavailable ancestors must not be silently fabricated.
 
-## Proposed boundaries — reference only (not a scaffolding mandate)
+## Vertical-slice architecture contract — binding for new implementation
 
-~~~text
+**Delivery strategy is vertical-slice development, not a staged MVP or horizontal domain→UI→canvas→AI rollout.** Every slice completes one user-observable path across the layers it genuinely needs. Quality/invariants are enforced from the first slice; unavailable integrations must be declared rather than faked.
+
+**Initial ownership, locked before scaffolding** (exact filenames are examples; do not create placeholders):
+
+```text
 src/
-  app/                     # composition, app shell / routing
-  features/
-    conversations/
-      model/               # turn, branching, lineage, context
-      ui/                  # ChatCard, Composer, ResponseRenderer
-    canvas/                # React Flow UI / spatial interaction
-  integrations/
-    ai/                    # provider transport, streaming
-    storage/               # migrations, persistence
-  shared/
-    ui/                    # genuinely reused primitives only
-~~~
+  app/                                  # application entry/composition and providers
+  modules/
+    conversation-workspace/
+      ConversationWorkspace.tsx         # route-facing composition, no domain logic
+      core/                             # pure turns, branch graph, context, stable IDs
+        types.ts
+        graph.ts
+        context.ts
+      adapters/                         # persistence and model transport boundaries
+        persistence.ts
+        assistant.ts
+      controller/                       # per-workspace state and command orchestration
+        useWorkspace.ts
+      components/                       # ChatCard, Composer, GraphCanvas, response renderer
+        ChatCard.tsx
+        Composer.tsx
+        GraphCanvas.tsx
+  components/
+    ui/                                  # only genuine generic UI primitives
+```
 
-- Domain imports no React, React Flow, DOM, storage driver or provider SDK.
-- App wires composition; feature UIs call domain commands; integrations speak in domain DTOs.
-- Feature-first and shallow; add directories only for real files/ownership.
-- Avoid blanket core/controllers/adapters/services/utils layers, speculative abstractions and refactors without measurable benefits.
-- Test next to its owner or follow repository convention.
-- **No unsolicited refactoring:** adding a feature does not permit moving, renaming, splitting or cleaning up unrelated code. Fix boundary violations in **new code** from the start; change legacy structure only with explicit user authorization or a narrowly demonstrated blocker.
-- **Folder creation test:** create a directory only when it owns an invariant, a real external boundary, or multiple files with strong change locality. Do not automatically impose `core/`, `adapters/`, `controller/`, `features/`, `application/`, `ports/`, `repositories/`, or per-feature barrels. Borrow no mandatory module structure from `modu-app` or `cs-101` without verifying this repo's needs.
-- Explicitly distinguish **current implemented ownership** from **planned target ownership** in future architecture updates. Future paths do not authorize moving existing code.
+**One feature owner:** conversation, chat turn, branch lineage, source anchoring, composer and canvas all belong to `conversation-workspace` in the initial product. Canvas is a *visual projection*, not a second domain. Do **not** also create `features/conversations`, `features/canvas`, `shared/graph`, `services/conversation` or `hooks/graph` without an explicit boundary decision.
+
+**Responsibility rules:**
+
+| Owner | Owns | Must not own |
+| --- | --- | --- |
+| `app/` | Bootstrapping, app-wide providers/routes | Conversation rules or provider secrets |
+| Workspace root | Feature composition and wiring | Domain commands or storage |
+| `core/` | Pure data types, graph transitions, context assembly, invariants | UI, network, storage, React/React Flow |
+| `adapters/` | Feature-local persistence and provider transport implementation | Graph business rules or UI state |
+| `controller/` | Per-workspace state, draft ownership, coordinating commands and async lifecycle | Duplicate core policy or raw HTML content |
+| `components/` | Chat, prompt, assistant response, spatial graph interaction | Canonical conversation truth or provider credentials |
+| `components/ui/` | Actually reused generic presentation primitives | Domain-specific behavior |
+
+- On a React stack, a controller may be a hook/store, but only controller owns orchestration; **do not introduce a second global store for the same state**.
+- Add only real files and folders required by the current slice. Once a responsibility appears, place it in its prescribed owner **from the first commit**, rather than implementing loosely and scheduling a structural cleanup.
+- Never put loose helper/business files next to `ConversationWorkspace.tsx`. No arbitrary extra buckets `hooks/`, `services/`, `utils/`, `lib/` or per-folder barrel exports.
+- These rules define **responsibility and dependency direction**, not a requirement to use every directory for every future tiny module. A genuinely new domain module needs an explicit ownership decision, not copy-pasted four empty folders.
+- UI library and app runtime are still pending platform selection. React + TypeScript + `@xyflow/react` remains the web-first **proposal**. If a browser extension is selected, adjust the runtime boundary deliberately before writing application code; do not silently adopt web-only architecture.
+
+### End-to-end slices, not horizontal phases
+
+Each slice must have: user job → UI → domain command/context → integration boundary/persistence → observable result → regression verification. Implement only required owners; no speculative scaffolding.
+
+| Order | Vertical user journey | Completion/evidence |
+| --- | --- | --- |
+| Slice 01 — Ask and receive | Create root card → send prompt → **real authorized AI response streaming** → persist turn → reload → read answer in graph | Context/testable transport, loading/error/retry, persistence roundtrip, minimal canvas and actual UI; needs approved provider/platform |
+| Slice 02 — Fork from source | Select answer quote/block → Fork → child created with stable parent/revision/block → assembled ancestor+focus context → AI answer → persist/reload → navigate to original quote | Unit tests for anchors, lineage/sibling isolation; E2E selection→fork→return |
+| Slice 03 — Continue and navigation | Continue a chosen path → distinct child answer → switch sibling paths, focus/overview, pan/zoom/collapse/search → drafts preserved | Context builder excludes sibling, gestures isolated, stable persisted viewport/draft state |
+| Slice 04 — Rich conversation | Attach supported file/content → show actual source/code/table/tool blocks → stream/cancel/retry → responsive composer expansion | Validated attachment bytes/permissions, no simulated tools/reasoning, errors recover, keyboard/mobile UI |
+
+**No artificial "foundation-only", "UI-only", or "canvas-only" release.** The first slice can be small in feature breadth but **complete in the selected user journey**, with correctness/security/loading/error/test handling from day one. Future slices extend the same folder owners without structural refactors.
+
+**Implementation gate before Slice 01:** resolve platform (standalone web vs extension), provider/auth mechanism, and persistence deployment. The choices affect actual transport and secret boundaries. Do not guess secrets or falsely label mock output as connected AI.
 
 ## Canvas / UI integration
 
@@ -94,8 +133,8 @@ Select tests based on the changed boundary, rather than running an invented or i
 
 **Verification rules:** first inspect which scripts and test boundaries exist. Use a failing regression test for meaningful behavior changes when feasible; do not force tests for docs, copy or CSS-only adjustments. Evidence must be from actual commands, not assumptions. Stop once the user-visible outcome and affected invariants are verified.
 
-## Critical path
+## Execution order
 
-**Now:** platform + context semantics + stable data model → **Next:** mocked root/fork/child with persistence and regression tests → **Later:** real provider streaming, rich content, advanced layout and graph comparison/merge.
+**Now:** confirm platform/provider/storage and enforce this ownership contract in the first file placement → **Next:** implement Slice 01 as a complete streamed/persisted/root-chat path → **Then:** source-anchored Fork, path continuation/navigation, and rich conversation slices. Defer speculative branch merge until separately designed.
 
 No claim of implemented functionality or passed tests without verification output.
