@@ -2,7 +2,7 @@
 // Pending records are deliberate user intent, never inferred from navigation.
 const KEY='gptdraw:branch-relations:v1';
 const PENDING='gptdraw:pending-branch:v1';
-export function createBranchStorage(storage) {
+export function createBranchStorage(storage, changes=globalThis.chrome?.storage?.onChanged) {
   return {
     async list(){
       const value=(await storage.get(KEY))[KEY];
@@ -21,6 +21,14 @@ export function createBranchStorage(storage) {
       return Date.now()-value.createdAt<=20*60*1000 ? value:null;
     },
     async setPending(record) { await storage.set({[PENDING]:record}); },
-    async clearPending() { await storage.remove(PENDING); }
+    async clearPending() { await storage.remove(PENDING); },
+    subscribe(listener) {
+      if(!changes?.addListener)return ()=>{};
+      const handler=(diff,area)=>{
+        if(area==='local' && (Object.hasOwn(diff,KEY)||Object.hasOwn(diff,PENDING))) listener();
+      };
+      changes.addListener(handler);
+      return ()=>changes.removeListener(handler);
+    }
   };
 }
