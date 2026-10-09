@@ -15,6 +15,20 @@ if (!document.getElementById(HOST_ID)) {
   styles.rel='stylesheet';styles.href=chrome.runtime.getURL('content.css');
   shadow.append(styles);
   document.documentElement.append(host);
+  // Follow ChatGPT's explicitly selected theme, falling back to OS preference.
+  const syncTheme=()=>{
+    const root=document.documentElement, body=document.body;
+    const mode=root.getAttribute('data-theme') || body?.getAttribute('data-theme');
+    const classes=[root.classList,body?.classList];
+    const theme=mode==='dark'||classes.some(list=>list?.contains('dark'))?'dark'
+      :mode==='light'||classes.some(list=>list?.contains('light'))?'light':null;
+    if(theme)host.dataset.gptdrawTheme=theme;
+    else delete host.dataset.gptdrawTheme;
+  };
+  syncTheme();
+  const themeObserver=new MutationObserver(syncTheme);
+  themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:['class','data-theme']});
+  if(document.body)themeObserver.observe(document.body,{attributes:true,attributeFilter:['class','data-theme']});
 
   const storage=createLayoutStorage(chrome.storage.local);
   let visible=false, measuredMain=null, resizeObserver=null, alignmentQueued=false;
@@ -108,6 +122,6 @@ if (!document.getElementById(HOST_ID)) {
     setTimeout(scheduleAlign,250);
   },true);
   window.addEventListener('pagehide',()=>{
-    controller.persist().catch(()=>{});controller.stop();resizeObserver?.disconnect();
+    controller.persist().catch(()=>{});controller.stop();resizeObserver?.disconnect();themeObserver.disconnect();
   });
 }
