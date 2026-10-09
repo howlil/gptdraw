@@ -31,7 +31,7 @@ if(!document.getElementById(HOST_ID)){
     pathname:()=>location.pathname,
     layoutStorage:storage,
     observe:callbacks=>createChatGPTObserver({document,...callbacks}),
-    onUpdate:state=>workspace.render(state)
+    onUpdate:(state,change)=>workspace.render(state,change)
   });
   const workspace=createConversationWorkspace({
     onClose:hide,
