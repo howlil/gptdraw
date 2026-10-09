@@ -47,6 +47,8 @@
   background:transparent;color:var(--g-muted);border:1px solid transparent;
 }
 .g-icon-button:hover {background:var(--g-panel);color:var(--g-text);}
+.g-icon-button:disabled {opacity:.35;cursor:default;}
+.g-icon-button:disabled:hover {background:transparent;color:var(--g-muted);}
 .g-primary-control {
   @apply inline-flex h-9 items-center justify-center gap-2 rounded-full px-4 text-xs font-medium;
   background:var(--g-text);color:var(--g-surface);border:0;
@@ -146,5 +148,5 @@
   to {opacity:1;transform:translateY(0);}
 }
 @media(prefers-reduced-motion:reduce) {
- :host * {transition:none!important;scroll-behavior:auto!important;}
+ :host * {transition:none!important;animation:none!important;scroll-behavior:auto!important;}
 }
