@@ -63,6 +63,14 @@ if (!document.getElementById(HOST_ID)) {
       }
       return result;
     },
+    onSend:async text=>{
+      const result=await submitNativePrompt(document,text);
+      if(result.status==='prepared'){
+        hide();
+        requestAnimationFrame(()=>findNativeComposer(document)?.focus?.());
+      }
+      return result;
+    },
     onRefresh:()=>controller.refresh(),
     onMove:(id,position)=>controller.move(id,position)
   });
