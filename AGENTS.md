@@ -1,6 +1,8 @@
 # AGENTS.md — gptdraw
 
-Router and SWE workflow for project agents. **.agents/ contains documentation, not auto-discovered skills.** Keep decisions at their owning document; do not create a second docs/ repository tree.
+Repository-wide SWE workflow and routing. **.agents/ contains working documentation, not installable skills.** Keep decisions with their single owner; do not create a parallel docs/ tree or per-task planning files.
+
+**Source of truth:** current user request → existing code/config/tests and observed runtime (for actual behavior) → this workflow → [DESIGN.md](DESIGN.md) for UI contract → [.agents/engineering-design.md](.agents/engineering-design.md) for architecture guidance → [.agents/product-design.md](.agents/product-design.md) for UX evidence. Architecture file paths are **proposals until implemented**, not evidence of a working stack. Never override observable code behavior with an aspirational document.
 
 ## Read and route
 
@@ -11,17 +13,32 @@ Router and SWE workflow for project agents. **.agents/ contains documentation, n
 | Implement a UI feature affecting model behavior | Product design → Engineering design → DESIGN.md | Product acceptance + tested vertical slice |
 | Trivial localized typo | Relevant file | Direct focused fix |
 
-## SWE lifecycle
+## Workflow — smallest correct change, least ceremony
 
-**Inspect → Understand/map → Plan → Test-first → Implement → Verify → Review/iterate**
+**UNDERSTAND → IDENTIFY OBSERVABLE OUTCOME → MAP OWNER/RISK → CHANGE MINIMALLY → VERIFY ACTUAL RISK → INSPECT DIFF → STOP.**
 
-1. **Inspect reality.** Read repo/source/tests and reproduce actual behavior. Never assume the prototype is a real AI product.
-2. **Map the graph.** User action → state → owning domain → I/O → result; identify ownership, critical path, invariants, failures and affected boundaries.
-3. **Plan small.** Now → Next → Later; exact files and observable acceptance tests. Challenge assumptions and avoid speculative refactoring.
-4. **Test-first for behavior.** Define a failing unit/integration/E2E test or executable acceptance criterion before changing behavior.
-5. **Implement minimally.** Small working vertical slice, feature-first low-depth organization, no duplicated owners or premature adapter/controller/service layers.
-6. **Verify.** Run actual tests, typecheck/lint/build when present; inspect live desktop/mobile/light/dark interaction when UI changes. Check concurrency, security and state persistence.
-7. **Review & iterate.** Compare with DESIGN.md, check diff/regression risks; report actual evidence and unresolved items. Never claim tests passed, deployment completed or provider connected without proof.
+For nontrivial engineering, use **inspect → map → plan → test-first → implement → verify → review**, but depth is proportional to risk. Think and plan before coding, without creating planning documents by default.
+
+1. **Inspect reality.** Read the actual source, configuration, tests and current Git state. Reproduce a bug or define the user-visible outcome. Prototype behavior is not production evidence.
+2. **Map the critical path.** Trace user action → owning component → state/domain decision → persistence/provider → UI. Name the **smallest owning boundary**, invariants, trust boundaries and failure modes. State Now → Next → Later only when it clarifies a substantial change.
+3. **Plan only what matters.** Specify concrete affected files, observable acceptance and risk. Do not scaffold modules, add dependencies or introduce a new layer until the requested outcome needs them.
+4. **Test-first where behavior is at risk.** Prefer the smallest faithful failing regression/domain test before implementation. Do not force unit tests for copy, CSS-only changes, docs or trivial wiring.
+5. **Implement one coherent change.** Preserve unrelated behavior, contracts and user edits. Do not turn feature work into repo-wide cleanup.
+6. **Verify the relevant boundary.** Run available targeted tests and then typecheck/lint/build where applicable; inspect interactive UI on desktop/mobile/light/dark when visual behavior changes. For domain/state/persistence, cover invalid input, concurrency, retry and state recovery where relevant.
+7. **Review diff and stop.** Confirm no unrelated modifications, report exact evidence and skipped checks. Never imply tests, deployment or AI integration worked without actual results.
+
+### Verification depth by risk
+
+| Change | Expected verification |
+| --- | --- |
+| Text, docs, CSS-only, trivial wiring | Focused inspection, visual check when relevant; no obligatory new test |
+| Deterministic domain behavior / local regression | Faithful unit or component regression test + targeted check |
+| Graph lineage, context, streaming, state, storage, API | Explicit invariants + integration tests at the correct owner |
+| Migrations, auth, concurrency, external provider | Failure/retry/idempotency/security checks and infrastructure-faithful evidence |
+
+**No unsolicited refactoring:** a feature request authorizes work in its existing owner, not renaming, splitting, relocating or redesigning unrelated modules. New code must respect ownership from its first commit. If a legacy boundary blocks the requested change, explain the smallest necessary adjustment; do not start a sweeping refactor. A separate refactoring request is required for general cleanup.
+
+**Git:** the current default branch is `master`; work directly there for explicit implementation requests unless the user asks for a branch/PR. Always inspect the current head/file before writing, preserve concurrent changes, verify remote content and inspect the diff. No PR or release ceremony by default.
 
 ## Hard constraints
 
@@ -32,6 +49,6 @@ Router and SWE workflow for project agents. **.agents/ contains documentation, n
 - Stable response revision/block ID and selected quote anchor, not numeric section index.
 - Persist drafts; never create fake sources, thinking, attachment upload or AI output without a clear demo label.
 - Use user-approved tokens/interaction in DESIGN.md; no UI drift.
-- Do not move/create folders or add frameworks just for pattern consistency.
+- Do not move/create folders, add frameworks, or enforce speculative feature layouts for pattern consistency. Do not copy the Svelte-specific module tree from another repo unless gptdraw actually selects that stack and needs that ownership.
 
 **Doc ownership:** DESIGN.md = UI rules; product-design.md = research and UX method; engineering-design.md = architecture and engineering evidence; AGENTS.md = routing/process. Update only the owner and necessary references.
