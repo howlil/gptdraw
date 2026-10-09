@@ -1,6 +1,6 @@
 # Engineering Design — gptdraw
 
-**Working architecture documentation, not an installable skill.** This repository currently has no implemented app, installed framework, active module tree or passing application test suite.
+**Working architecture documentation, not an installable skill.** Chrome Manifest V3 is the selected platform; the first root-chat vertical slice is implemented. Automated tests use a mock OpenAI upstream; real Chrome installation and live API calls are not yet smoke-tested.
 
 ## Status and authority
 
@@ -9,7 +9,9 @@
 | Approved product semantics: one turn/card, parent lineage, Fork/Continue, stable provenance | **Active contract for future code** | Implementation must preserve these invariants |
 | Domain ownership: conversation is truth, canvas only a visual projection | **Engineering boundary decision** | Do not store business state only in graph/UI objects |
 | Conversation workspace folder ownership | **Binding contract for all new application code** | Use prescribed owners from the first implementation; do not create empty scaffolds |
-| React Flow, runtime, model/provider/storage | **Unresolved technology decisions** | Confirm platform and real I/O boundary before implementing an end-to-end slice |
+| MV3 runtime and local storage | **Implemented for Slice 01** | Native ESM, isolated iframe, chrome.storage.local, background Port and Node localhost gateway |
+| AI streaming | **Implemented, credential-dependent** | Official Responses SSE via local gateway; requires a separate API key and live smoke test |
+| React Flow | **Not installed** | Native canvas is current implementation; revisit only with justified graph complexity |
 | Old HTML prototype | **Design reference** | Mock AI, local filename handling and in-memory graph are not production behavior |
 
 Follow root [AGENTS.md](../AGENTS.md) for workflow, risk-based tests, scope and Git rules. Follow root [DESIGN.md](../DESIGN.md) for UI. Do not create an additional `architecture.md` or planning document unless a genuinely independent contract becomes necessary.
@@ -49,29 +51,38 @@ Follow root [AGENTS.md](../AGENTS.md) for workflow, risk-based tests, scope and 
 
 **Delivery strategy is vertical-slice development, not a staged MVP or horizontal domain→UI→canvas→AI rollout.** Every slice completes one user-observable path across the layers it genuinely needs. Quality/invariants are enforced from the first slice; unavailable integrations must be declared rather than faked.
 
-**Initial ownership, locked before scaffolding** (exact filenames are examples; do not create placeholders):
+**Implemented owners (Slice 01), extend in-place for future vertical slices:**
 
 ```text
+manifest.json
+extension/
+  launcher.js                 # ChatGPT-page launcher only
+  workspace.html              # isolated extension UI
+  background.mjs              # trusted service worker / Port / token
+  gateway-server.mjs          # local Node gateway entry
 src/
-  app/                                  # application entry/composition and providers
+  app/
+    main.mjs                  # bootstrap
+    workspace.css             # UI design contract implementation
   modules/
     conversation-workspace/
-      ConversationWorkspace.tsx         # route-facing composition, no domain logic
-      core/                             # pure turns, branch graph, context, stable IDs
-        types.ts
-        graph.ts
-        context.ts
-      adapters/                         # persistence and model transport boundaries
-        persistence.ts
-        assistant.ts
-      controller/                       # per-workspace state and command orchestration
-        useWorkspace.ts
-      components/                       # ChatCard, Composer, GraphCanvas, response renderer
-        ChatCard.tsx
-        Composer.tsx
-        GraphCanvas.tsx
-  components/
-    ui/                                  # only genuine generic UI primitives
+      ConversationWorkspace.mjs  # composition + pairing
+      core/
+        graph.mjs             # root turn model + stable IDs
+        sse.mjs               # pure streaming parser
+      adapters/
+        storage.mjs           # chrome.storage.local
+        assistant.mjs         # Chrome Port messages
+        gateway.mjs           # OpenAI Responses API relay
+      controller/
+        workspace.mjs         # per-workspace lifecycle + persistence
+      components/
+        ChatCard.mjs          # prompt and assistant
+        Composer.mjs          # adaptive input
+        GraphCanvas.mjs       # native graph viewport
+tests/
+  graph.test.mjs
+  gateway.test.mjs
 ```
 
 **One feature owner:** conversation, chat turn, branch lineage, source anchoring, composer and canvas all belong to `conversation-workspace` in the initial product. Canvas is a *visual projection*, not a second domain. Do **not** also create `features/conversations`, `features/canvas`, `shared/graph`, `services/conversation` or `hooks/graph` without an explicit boundary decision.
@@ -90,9 +101,9 @@ src/
 
 - On a React stack, a controller may be a hook/store, but only controller owns orchestration; **do not introduce a second global store for the same state**.
 - Add only real files and folders required by the current slice. Once a responsibility appears, place it in its prescribed owner **from the first commit**, rather than implementing loosely and scheduling a structural cleanup.
-- Never put loose helper/business files next to `ConversationWorkspace.tsx`. No arbitrary extra buckets `hooks/`, `services/`, `utils/`, `lib/` or per-folder barrel exports.
+- Never put loose helper/business files next to `ConversationWorkspace.mjs`. No arbitrary extra buckets `hooks/`, `services/`, `utils/`, `lib/` or per-folder barrel exports.
 - These rules define **responsibility and dependency direction**, not a requirement to use every directory for every future tiny module. A genuinely new domain module needs an explicit ownership decision, not copy-pasted four empty folders.
-- UI library and app runtime are still pending platform selection. React + TypeScript + `@xyflow/react` remains the web-first **proposal**. If a browser extension is selected, adjust the runtime boundary deliberately before writing application code; do not silently adopt web-only architecture.
+- **Current runtime:** dependency-free Chrome MV3 ESM, loaded directly from the repository with no build step. React/TypeScript/React Flow are not installed. Do not silently add a duplicate frontend or move owners.
 
 ### End-to-end slices, not horizontal phases
 
@@ -109,13 +120,15 @@ Each slice must have: user job → UI → domain command/context → integration
 
 **Implementation gate before Slice 01:** resolve platform (standalone web vs extension), provider/auth mechanism, and persistence deployment. The choices affect actual transport and secret boundaries. Do not guess secrets or falsely label mock output as connected AI.
 
-## Canvas / UI integration
+## Canvas / UI implementation
 
-React + TypeScript with @xyflow/react custom nodes is a **recommendation**, not an installed dependency. Source/target handles should use stable block IDs, updated when dynamic node size or blocks change. Use nodrag/nopan/nowheel or equivalent to isolate response selection, textarea, internal scroll and menus. Preserve React component identity during canvas updates. Zoomed-out overview and focused readable chat are distinct. ELK auto-layout remains optional until needed.
+`components/GraphCanvas.mjs` currently provides native root-card positioning, pan and zoom. No branch edges exist yet. Keep selection/textarea scroll isolated from canvas drag. Future branch handles must reference stable block and response revision IDs, not section indices. Distinguish focus reading from zoomed-out overview as topology grows. A future React Flow dependency would require an explicit decision, not a parallel feature owner.
 
 ## Persistence, providers, security
 
-- Choose web vs extension **before** choosing auth, storage, model transport or deployment. IndexedDB/backend DB is an unresolved decision.
+- **Platform chosen:** Chrome MV3. `chatgpt.com` is only the launcher host; no ChatGPT DOM extraction, cookies, private API calls, or implicit conversation context.
+- **Storage chosen:** `chrome.storage.local` v1 root-turn snapshot, with trusted-context pairing token. No cross-device sync.
+- **Transport:** background Port → authenticated localhost Node gateway (`127.0.0.1:8787`) → official OpenAI Responses SSE. Pairing token is not a provider API key and must not be treated as remote multi-user auth.
 - Never embed provider secrets in client/extension bundle. Use authorized transport/backend.
 - Attachments require actual content validation/upload and bounded access; filenames alone are not context.
 - Treat user text, AI Markdown, links, tool results and files as untrusted. Prevent XSS, unsafe links and leaked sensitive logs.
@@ -135,6 +148,6 @@ Select tests based on the changed boundary, rather than running an invented or i
 
 ## Execution order
 
-**Now:** confirm platform/provider/storage and enforce this ownership contract in the first file placement → **Next:** implement Slice 01 as a complete streamed/persisted/root-chat path → **Then:** source-anchored Fork, path continuation/navigation, and rich conversation slices. Defer speculative branch merge until separately designed.
+**Done in source:** Slice 01 MV3 root chat, streaming bridge, local persistence and error/retry with mocked integration tests. **Next:** manual Chrome + actual provider key smoke test, then Slice 02 stable source-anchored Fork. **Later:** path continuation, richer content and attachments.
 
 No claim of implemented functionality or passed tests without verification output.
