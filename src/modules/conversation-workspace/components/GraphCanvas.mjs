@@ -108,6 +108,12 @@ export function createGraphCanvas({ onAsk, onRetry, onMove }) {
       if (!didInit && container.clientWidth) { didInit = true; fit(turns); }
     },
     fit,
-    focusComposer() { composer.focus(); }
+    focusComposer() {
+      const x = parseFloat(draftCard.style.left) + 224;
+      const y = parseFloat(draftCard.style.top) + 110;
+      tx = container.clientWidth / 2 - x * scale;
+      ty = container.clientHeight / 2 - y * scale;
+      apply(); composer.focus();
+    }
   };
 }
