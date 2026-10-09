@@ -1,7 +1,7 @@
 import { createChatCard } from './ChatCard.mjs';
 import { createStartCard } from './StartCard.mjs';
 import { control } from '../../../components/ui/icons.mjs';
-import { layoutPoint } from '../core/graph.mjs';
+import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
 
 export function createGraphCanvas({ onSource, onMove, onStart }) {
   const viewport = document.createElement('section');
@@ -16,13 +16,16 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
   const controls = document.createElement('div');
   controls.className = 'g-zoom-controls';
   const zoomLabel = document.createElement('span'); zoomLabel.className = 'g-zoom-value';
-  controls.append(control('Zoom out','minus',()=>zoom(scale-.12)),zoomLabel,
+  const firstButton=control('Go to earliest loaded turn','back',()=>turns[0] && focus(turns[0].id));
+  const latestButton=control('Go to latest turn','navigate',()=>turns.length && focus(turns[turns.length-1].id));
+  controls.append(firstButton,control('Zoom out','minus',()=>zoom(scale-.12)),zoomLabel,
     control('Zoom in','plus',()=>zoom(scale+.12)),
-    control('Fit conversation','fit',()=>fit()));
+    control('Fit conversation','fit',()=>fit()),latestButton);
   viewport.append(controls);
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
   let autoFit = true, edgesQueued = false, previousRoute = null;
+  let stablePositions = new Map();
   const cards = new Map();
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   const renderTransform = () => {
@@ -30,7 +33,7 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
     zoomLabel.textContent = Math.round(scale*100) + '%';
     queueEdges();
   };
-  const point = (turn,index) => positions[turn.id] || layoutPoint(index);
+  const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
   const drawEdges = () => {
     edgesQueued = false;
     edgeLayer.replaceChildren();
@@ -127,8 +130,10 @@ export function createGraphCanvas({ onSource, onMove, onStart }) {
     element:viewport,
     reconcile(state, change){
       const routeChanged=previousRoute!==state.route;
-      if(routeChanged){previousRoute=state.route;autoFit=true;}
+      if(routeChanged){previousRoute=state.route;autoFit=true;stablePositions.clear();}
       positions=state.positions;turns=state.turns;
+      stablePositions=stabilizeLayout(turns,stablePositions,positions);
+      firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
         if(card)card._update(turns[card._turnIndex]);
