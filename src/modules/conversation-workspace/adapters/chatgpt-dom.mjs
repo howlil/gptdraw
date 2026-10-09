@@ -21,6 +21,14 @@ function readSource(node, role) {
   const selector = role === 'user' ? USER_CONTENT : RESPONSE_CONTENT;
   return node.querySelector?.(selector) || node.querySelector?.(ROLE_SELECTOR) || node;
 }
+function assistantFromTurn(node) {
+  const own=extractAssistantContent(node);
+  if(own.text)return own;
+  const wrapper=node.closest?.(TURN_SELECTOR) || node.closest?.(GROUP_SELECTOR);
+  if(!wrapper || wrapper===node)return own;
+  const surrounding=extractAssistantContent(wrapper);
+  return surrounding.text?surrounding:own;
+}
 function idOf(node, role, ordinal) {
   const inside = node.querySelector?.(ROLE_SELECTOR);
   const id = node.getAttribute?.('data-message-id')
@@ -77,7 +85,7 @@ export function collectMessages(root) {
     const id = idOf(node,role,result.length);
     if (seen.has(id)) continue;
     seen.add(id);
-    const extracted=role==='assistant'?extractAssistantContent(node):null;
+    const extracted=role==='assistant'?assistantFromTurn(node):null;
     const source=extracted?.source || readSource(node,role);
     result.push({id,role,text:extracted?.text ?? (source.textContent || '').trim(),
       blocks:extracted?.blocks || [],element:node,source});
@@ -181,7 +189,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     for (const id of pending) {
       const previous = nodes.get(id);
       if (!previous) continue;
-      const extracted=previous.role==='assistant'?extractAssistantContent(previous.element):null;
+      const extracted=previous.role==='assistant'?assistantFromTurn(previous.element):null;
       const source=extracted?.source || readSource(previous.element,previous.role);
       const text = extracted?.text ?? (source.textContent || '').trim();
       if (text !== previous.text) {
