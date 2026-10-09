@@ -1,6 +1,17 @@
 # Engineering Design — gptdraw
 
-**Working documentation, not an installable skill.** Architecture is proposed; the repository does not yet contain a runtime or passing application tests.
+**Working architecture documentation, not an installable skill.** This repository currently has no implemented app, installed framework, active module tree or passing application test suite.
+
+## Status and authority
+
+| Category | Status | Rule |
+| --- | --- | --- |
+| Approved product semantics: one turn/card, parent lineage, Fork/Continue, stable provenance | **Active contract for future code** | Implementation must preserve these invariants |
+| Domain ownership: conversation is truth, canvas only a visual projection | **Engineering boundary decision** | Do not store business state only in graph/UI objects |
+| Proposed `src/` layout, React Flow, storage/provider choices | **Proposal, NOT active code or mandatory folder structure** | Inspect stack and real call sites first; create owners only when needed |
+| Old HTML prototype | **Design reference** | Mock AI, local filename handling and in-memory graph are not production behavior |
+
+Follow root [AGENTS.md](../AGENTS.md) for workflow, risk-based tests, scope and Git rules. Follow root [DESIGN.md](../DESIGN.md) for UI. Do not create an additional `architecture.md` or planning document unless a genuinely independent contract becomes necessary.
 
 ## Core dependency graph
 
@@ -33,7 +44,7 @@
 - Provider retries/idempotency prevent duplicate child turns. Errors preserve prompts.
 - Token budget overflow must have a transparent truncation/summarization policy; unavailable ancestors must not be silently fabricated.
 
-## Proposed boundaries (do not scaffold unused folders)
+## Proposed boundaries — reference only (not a scaffolding mandate)
 
 ~~~text
 src/
@@ -55,6 +66,9 @@ src/
 - Feature-first and shallow; add directories only for real files/ownership.
 - Avoid blanket core/controllers/adapters/services/utils layers, speculative abstractions and refactors without measurable benefits.
 - Test next to its owner or follow repository convention.
+- **No unsolicited refactoring:** adding a feature does not permit moving, renaming, splitting or cleaning up unrelated code. Fix boundary violations in **new code** from the start; change legacy structure only with explicit user authorization or a narrowly demonstrated blocker.
+- **Folder creation test:** create a directory only when it owns an invariant, a real external boundary, or multiple files with strong change locality. Do not automatically impose `core/`, `adapters/`, `controller/`, `features/`, `application/`, `ports/`, `repositories/`, or per-feature barrels. Borrow no mandatory module structure from `modu-app` or `cs-101` without verifying this repo's needs.
+- Explicitly distinguish **current implemented ownership** from **planned target ownership** in future architecture updates. Future paths do not authorize moving existing code.
 
 ## Canvas / UI integration
 
@@ -69,19 +83,16 @@ React + TypeScript with @xyflow/react custom nodes is a **recommendation**, not 
 - Real streaming needs cancellation, retries, error visibility, rate/cost controls and duplicate-send protection.
 - Never present mocked results, sources, search, reasoning or model routing as real.
 
-## SWE workflow
+## Risk-based verification (execution flow lives in root AGENTS.md)
 
-**Inspect → Understand/map → Plan → Test first → Implement → Verify → Review/iterate**
+Select tests based on the changed boundary, rather than running an invented or irrelevant suite:
 
-1. Inspect repo/lockfiles and reproduce behavior, not remembered architecture.
-2. Map critical path, ownership, call/data graph, invariants and failure paths.
-3. Plan Now → Next → Later with the smallest full vertical slice and exact touched files.
-4. Write a failing invariant/unit/UI/integration test or executable acceptance scenario before code.
-5. Implement minimally. No architecture-only layers, oversized commits or unrequested refactor.
-6. Run existing targeted tests, typecheck, lint/build; inspect real UI desktop/mobile/light/dark and long-form response.
-7. Review diff/security/concurrency/state and report actual evidence + remaining risks.
+- **Pure domain / context:** unit tests for lineage, parent/cycle validation, immutable anchor/revision, sibling exclusion and context budgeting.
+- **Storage / AI transport:** faithful integration tests for persistence/migration, idempotent send, streaming/cancel/retry and attachment validation.
+- **Canvas / composer:** interactive component/E2E checks for compact→expanded composer, per-card draft preservation, selection→fork, keyboard/mouse gesture isolation and source navigation.
+- **System quality:** relevant build/typecheck/lint when scripts exist; inspect responsive, light/dark, long output and large graphs if UI changed; check untrusted Markdown/XSS where external content flows through.
 
-Tests: unit (lineage, anchors, sibling isolation, budgets); integration (storage/migration, stream/cancel/retry, attachment validation); E2E (root→fork→continue→reload→return-to-source, pan vs selection, composer states, keyboard/touch); nonfunctional (30–50+ cards, rendering, XSS/performance).
+**Verification rules:** first inspect which scripts and test boundaries exist. Use a failing regression test for meaningful behavior changes when feasible; do not force tests for docs, copy or CSS-only adjustments. Evidence must be from actual commands, not assumptions. Stop once the user-visible outcome and affected invariants are verified.
 
 ## Critical path
 
