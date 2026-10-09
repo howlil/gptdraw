@@ -12,7 +12,9 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   brandingText.append(title,subtitle);branding.append(brandingText);
   const tools=document.createElement('div');tools.className='g-toolbar';
   const count=document.createElement('span');count.className='g-turn-count';
-  tools.append(count,control('Sync current conversation','refresh',onRefresh));
+  const historyLabel=document.createElement('span');historyLabel.className='g-history-status';
+  historyLabel.setAttribute('role','status');historyLabel.setAttribute('aria-live','polite');
+  tools.append(historyLabel,count,control('Sync current conversation / Load earlier history','refresh',onRefresh));
   const compose=document.createElement('button');compose.type='button';
   compose.className='g-primary-control';compose.append(icon('message',15));
   compose.append(document.createTextNode(' Compose in ChatGPT'));
@@ -28,6 +30,17 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
     show(){wrapper.hidden=false;},
     hide(){wrapper.hidden=true;},
     render(state, change){
+      const status=state.history?.status || 'idle';
+      const labels={
+        loading:'Loading older messages…',
+        complete:'History scanned',
+        limited:'Some earlier messages may be unavailable',
+        unavailable:'Only rendered messages available',
+        idle:'',cancelled:''
+      };
+      historyLabel.textContent=labels[status] || '';
+      historyLabel.hidden=!historyLabel.textContent;
+      if(change?.type==='history')return;
       if(change?.type!=='patch' && change?.type!=='position')
         count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns');
       canvas.reconcile(state,change);
