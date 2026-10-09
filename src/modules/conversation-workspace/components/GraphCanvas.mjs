@@ -133,7 +133,7 @@ export function createGraphCanvas({ onSource, onMove, onEmpty }) {
       });
       onEmpty(turns.length===0);
       queueEdges();
-      if((routeChanged||autoFit)&&viewport.clientWidth){autoFit=false;requestAnimationFrame(fit);}
+      if(routeChanged && viewport.clientWidth){autoFit=false;requestAnimationFrame(fit);}
     },
     fit,focus
   };
