@@ -155,3 +155,16 @@ test('grouped ChatGPT turns recover a user prompt without a nested author role',
     {id:'assistant:turn-key:abc-123',role:'assistant',text:'Rust is a systems programming language'}
   ]);
 });
+
+test('native stable turn key takes precedence over recycled conversation-turn index',()=>{
+  const wrapper={
+    nodeType:1,textContent:'Keep turn stable',
+    getAttribute:key=>key==='data-turn'?'user':
+      key==='data-turn-key'?'stable-key-42':
+      key==='data-testid'?'conversation-turn-0':null,
+    querySelector:()=>null,querySelectorAll:()=>[]
+  };
+  const main={querySelectorAll:selector=>selector.includes('conversation-turn')?[wrapper]:[]};
+  const result=collectMessages(main);
+  assert.equal(result[0].id,'user:stable-key-42');
+});
