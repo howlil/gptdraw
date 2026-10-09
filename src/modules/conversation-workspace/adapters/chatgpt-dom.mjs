@@ -133,8 +133,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       onStatus:status => {if(!controller.signal.aborted)onHistory(status);},
       onScan:() => {
         if(controller.signal.aborted || activeRoot!==root)return {count:0};
-        snapshot();
-        return {count:nodes.size,firstId:nodes.keys().next().value ?? null};
+        const cumulative=snapshot();
+        return cumulative || {count:nodes.size,firstId:nodes.keys().next().value ?? null};
       }
     }).catch(error => {
       if (!controller.signal.aborted)onHistory({status:'limited',message:error?.message || 'History load failed'});
@@ -150,8 +150,9 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       const roleEl = row.element.querySelector?.(ROLE_SELECTOR);
       if (roleEl) targetIds.set(roleEl,row.id);
     }
-    onSnapshot(rows);
+    const cumulative=onSnapshot(rows);
     if (!historyStarted) queueMicrotask(startBackfill);
+    return cumulative;
   };
   const turnFor = node => {
     let element = node?.nodeType === 1 ? node : node?.parentElement;
