@@ -13,6 +13,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   const volatilePreviews=new Map(); // Up to eight loaded conversations, never Chrome Storage.
   let running = false, storeTimer = 0, generation = 0, lifecycle=0;
   let pendingLayout=null,writeTail=Promise.resolve(),unresolved=[];
+  let structuralTimer=null;
+  const contentSignatures=new Map();
   let observer = null;
   let unsubscribeBranches=()=>{};
   let messageIndex = new Map(), turnIndex = new Map();
@@ -29,6 +31,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     while(volatilePreviews.size>8)volatilePreviews.delete(volatilePreviews.keys().next().value);
   };
   const refresh = () => {
+    if(structuralTimer!==null){clearTimeout(structuralTimer);structuralTimer=null;}
     turns = pairMessages(messages);
     messageIndex = new Map(messages.map((m,i) => [m.id,i]));
     turnIndex = new Map();
@@ -38,7 +41,14 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     });
     cacheLatest();notify({ type:'snapshot' });
   };
+  const scheduleRefresh=()=>{
+    if(!turns.length){refresh();return;}
+    if(structuralTimer!==null)return;
+    structuralTimer=setTimeout(()=>{structuralTimer=null;if(running)refresh();},170);
+  };
   async function loadRoute(path) {
+    if(structuralTimer!==null){clearTimeout(structuralTimer);structuralTimer=null;}
+    contentSignatures.clear();
     flushLayout();
     route = routeKey(path);
     const seq = ++generation;
@@ -75,22 +85,34 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   const callbacks = {
     onSnapshot(items) {
       if(!running)return {count:messages.length,firstId:messages[0]?.id??null};
-      const merged=mergeAnchoredHistory(messages,items,unresolved,
+      // Compare only the currently scanned DOM window, not every old message
+      // accumulated in RAM. Reuse prior records for unchanged windows.
+      const previous=new Map(messages.map(row=>[row.id,row]));
+      const normalized=items.map(row=>{
+        const signature=row.role+'\0'+row.text+'\0'+JSON.stringify(row.blocks||[]);
+        const old=previous.get(row.id);
+        const matches=old && contentSignatures.get(row.id)===signature;
+        contentSignatures.set(row.id,signature);
+        return matches?old:row;
+      });
+      const merged=mergeAnchoredHistory(messages,normalized,unresolved,
         history.status==='loading'&&history.phase==='up');
       unresolved=merged.unresolved;
-      const changed=merged.messages.length!==messages.length || merged.messages.some((row,i)=>
-        row.id!==messages[i]?.id || row.role!==messages[i]?.role ||
-        row.text!==messages[i]?.text || JSON.stringify(row.blocks||[])!==JSON.stringify(messages[i]?.blocks||[]));
+      const changed=merged.messages.length!==messages.length ||
+        merged.messages.some((row,i)=>row!==messages[i]);
       messages=merged.messages;
-      if (changed) refresh();
+      if(changed)scheduleRefresh();
       return {count:messages.length,firstId:messages[0]?.id??null,unresolved:unresolved.length};
     },
     onHistory(status) {
       if(!running)return;
+      if(status.status!=='loading' && structuralTimer!==null)refresh();
       history={...status,unresolved:unresolved.length};notify({type:'history'});
     },
     onPatch(item) {
       if(!running)return;
+      if(structuralTimer!==null)refresh();
+      contentSignatures.set(item.id,item.role+'\0'+item.text+'\0'+JSON.stringify(item.blocks||[]));
       const i = messageIndex.get(item.id);
       if (i === undefined) { observer?.refresh(); return; }
       messages[i] = item;
@@ -138,6 +160,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       if(!running)return;
       running=false;++lifecycle;++generation;
       flushLayout();
+      if(structuralTimer!==null){clearTimeout(structuralTimer);structuralTimer=null;}
       unsubscribeBranches();unsubscribeBranches=()=>{};
       observer?.stop();observer=null;
     },
@@ -154,6 +177,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     },
     refresh() { observer?.refresh();observer?.loadEarlier?.(); },
     pauseHistory() { observer?.pauseHistory?.(); },
+    markInteraction() { observer?.markInteraction?.(); },
     async toggleBookmark(id) {
       if(!stableMessageId(id) || !turns.some(t=>t.id===id))
         throw new Error('This turn has no durable source ID for a persistent bookmark.');
