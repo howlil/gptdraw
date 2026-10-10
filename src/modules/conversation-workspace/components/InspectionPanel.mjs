@@ -1,14 +1,24 @@
 import {createResponseBlock} from './ResponseBlock.mjs';
 import {control} from '../../../components/ui/icons.mjs';
+import {readAnswerSelection} from './selection.mjs';
 
 // Read-only live lens. Preserve column identity and scroll during streaming.
-function column(turn,label){
+function column(turn,label,onSelection){
   const element=document.createElement('section');element.className='g-inspect-column';
   const heading=document.createElement('h3');heading.textContent=label;
   const prompt=document.createElement('div');prompt.className='g-inspect-prompt';
   const response=document.createElement('div');response.className='g-inspect-response';
   element.append(heading,prompt,response);
   const state={element,prompt,response,blocks:[],id:turn.id};
+  const announce=()=>{
+    const rootSelection=response.getRootNode()?.getSelection?.();
+    const selection=rootSelection?.rangeCount?rootSelection:document.getSelection?.();
+    const quote=readAnswerSelection(response,selection);
+    onSelection?.(quote?{...quote,turnId:turn.id}:null);
+  };
+  response.addEventListener('mouseup',announce);
+  response.addEventListener('keyup',announce);
+  response.addEventListener('touchend',()=>requestAnimationFrame(announce));
   patchColumn(state,turn);
   return state;
 }
@@ -46,7 +56,7 @@ function patchColumn(state,turn) {
   }
   while(state.blocks.length>next.length)state.blocks.pop().element.remove();
 }
-export function createInspectionPanel(){
+export function createInspectionPanel(onSelection=()=>{}){
   const overlay=document.createElement('section');overlay.className='g-inspection';overlay.hidden=true;
   overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Focused conversation reading');
   const header=document.createElement('header');header.className='g-inspection-head';
@@ -70,7 +80,7 @@ export function createInspectionPanel(){
   function open(items,heading,labels){
     if(overlay.hidden)restore=overlay.getRootNode()?.activeElement;
     title.textContent=heading;
-    columns=items.map((turn,i)=>column(turn,labels[i]));
+    columns=items.map((turn,i)=>column(turn,labels[i],onSelection));
     content.replaceChildren(...columns.map(c=>c.element));
     overlay.classList.toggle('g-compare-mode',items.length===2);
     overlay.hidden=false;
