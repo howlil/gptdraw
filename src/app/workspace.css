@@ -97,26 +97,17 @@
   box-shadow:0 3px 14px rgba(0,0,0,.06);cursor:default;
 }
 .g-zoom-value {min-width:40px;text-align:center;font-size:11px;color:var(--g-muted);}
-/* One real start card sits inside the graph, not above the whole workspace. */
-.g-start-card {min-height:250px;max-height:420px;}
+/* New chat and loading chat share Dialogue card geometry + composer. */
+.g-start-card {min-height:0;max-height:none;}
 .g-start-card .g-card-head {cursor:default;}
-.g-start-heading {font-size:16px;font-weight:600;line-height:24px;margin:2px 0 5px;}
-.g-start-hint {font-size:12px;line-height:19px;color:var(--g-muted);margin:0 0 20px;}
-.g-start-composer {
-  display:flex;flex-direction:column;gap:10px;
-  border:1px solid var(--g-border);border-radius:16px;
-  background:var(--g-surface);padding:12px;
-}
-.g-start-composer:focus-within {border-color:var(--g-accent);}
-.g-start-composer textarea {
-  display:block;width:100%;min-height:66px;max-height:160px;
-  resize:vertical;border:0;outline:0;background:transparent;
-  font:inherit;font-size:14px;line-height:22px;color:var(--g-text);
-}
-.g-start-composer textarea::placeholder {color:var(--g-muted);}
-.g-start-actions {display:flex;align-items:center;justify-content:space-between;gap:10px;}
-.g-start-actions button:disabled {opacity:.42;cursor:default;}
-.g-start-status {font-size:11px;line-height:16px;color:var(--g-muted);max-width:240px;overflow-wrap:anywhere;}
+.g-start-card .g-card-body {min-height:85px;max-height:none;padding-bottom:12px;}
+.g-start-heading {font-size:14px;font-weight:600;line-height:21px;margin:0 0 7px;}
+.g-start-hint {font-size:12px;line-height:19px;color:var(--g-muted);margin:0;}
+.g-start-status {font-size:11px;line-height:17px;color:var(--g-muted);margin:9px 0 0;overflow-wrap:anywhere;}
+.g-start-status:empty{display:none;}
+.g-start-card .g-node-composer {display:flex;}
+.g-start-card .g-node-composer[hidden] {display:none!important;}
+.g-start-loading .g-card-body {min-height:95px;}
 .g-footer {
   @apply flex shrink-0 items-center justify-between gap-3 border-t px-6;
   height:33px;background:var(--g-surface);border-color:var(--g-border);
