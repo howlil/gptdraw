@@ -62,15 +62,23 @@ function blockFrom(el) {
   }
   return block;
 }
-function blocksFrom(container) {
+function blocksFrom(container,{cache=null,dirtyNodes=null}={}) {
   const all=[...(container?.querySelectorAll?.(BLOCK_SELECTOR)||[])];
   const filtered=all.filter(el=>{
     const parent=el.parentElement?.closest?.('pre,blockquote,ul,ol,table');
     return !parent||!container.contains?.(parent);
   });
-  return filtered.map(blockFrom).filter(b=>b.kind==='divider'||b.text);
+  return filtered.map(element=>{
+    const cached=cache?.get(element);
+    const dirty=dirtyNodes?.size && [...dirtyNodes].some(node=>
+      node===element || element.contains?.(node));
+    if(cached && !dirty)return cached;
+    const block=blockFrom(element);
+    cache?.set(element,block);
+    return block;
+  }).filter(b=>b.kind==='divider'||b.text);
 }
-export function extractAssistantContent(node) {
+export function extractAssistantContent(node,options={}) {
   let markdown=[...(node?.querySelectorAll?.('.markdown')||[])]
     .filter(el=>!el.parentElement?.closest?.('.markdown'));
   if(!markdown.length){
@@ -89,7 +97,7 @@ export function extractAssistantContent(node) {
   if(!sources.length)sources=[node];
   const blocks=[];
   for(const source of sources) {
-    const structured=blocksFrom(source);
+    const structured=blocksFrom(source,options);
     if(structured.length)blocks.push(...structured);
     else {
       const text=textOf(source);
