@@ -38,3 +38,32 @@ test('a structural replace never reuses detached response block data',()=>{
   assert.equal(after.blocks[1].kind,'heading');
   assert.notEqual(after.blocks[1],before.blocks[1]);
 });
+
+test('copy action reads the current code text after an in-place streaming update',async()=>{
+  const {createResponseBlock}=await import('../src/modules/conversation-workspace/components/ResponseBlock.mjs');
+  class Node {
+    constructor(tag){this.tagName=tag;this.children=[];this.events={};this.textContent='';}
+    append(...items){this.children.push(...items);}
+    addEventListener(name,callback){this.events[name]=callback;}
+  }
+  const originalDocument=globalThis.document;
+  const originalNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  let copied='';
+  globalThis.document={createElement:tag=>new Node(tag)};
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{
+    clipboard:{writeText:async value=>{copied=value;}}
+  }});
+  try {
+    const root=createResponseBlock({kind:'code',text:'initial',language:'js'});
+    const bar=root.children[0],pre=root.children[1];
+    const button=bar.children[1],code=pre.children[0];
+    code.textContent='streamed and updated';
+    await button.events.click();
+    assert.equal(copied,'streamed and updated');
+  }finally{
+    if(originalDocument===undefined)delete globalThis.document;
+    else globalThis.document=originalDocument;
+    if(originalNavigator)Object.defineProperty(globalThis,'navigator',originalNavigator);
+    else delete globalThis.navigator;
+  }
+});
