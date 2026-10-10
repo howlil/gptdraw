@@ -31,3 +31,34 @@ export function mergeVisibleMessages(known,visible,loadingEarlier=false) {
   }
   return merged;
 }
+
+
+// Do not fabricate chronological order between two disjoint virtualized
+// windows. Unanchored pages stay in memory until a later scan overlaps one.
+export function mergeAnchoredHistory(known,visible,previousUnresolved=[],loadingEarlier=false) {
+  let messages=known.slice(),unresolved=[...previousUnresolved];
+  const merge=page=>{
+    if(!page.length)return true;
+    if(!messages.length){messages=page.slice();return true;}
+    const ids=new Set(messages.map(x=>x.id));
+    if(!page.some(x=>ids.has(x.id)))return false;
+    messages=mergeVisibleMessages(messages,page,loadingEarlier);
+    return true;
+  };
+  if(!merge(visible)&&visible.length&&!unresolved.some(p=>p.length===visible.length &&
+    p.every((row,i)=>row.id===visible[i].id)))unresolved.push(visible.slice());
+  // Iterate until no more anchored segments can be resolved.
+  let progress=true;
+  while(progress){
+    progress=false;
+    const rest=[];
+    for(const page of unresolved){
+      if(merge(page))progress=true;
+      else rest.push(page);
+    }
+    unresolved=rest;
+  }
+  // Cap unresolved UI-only pages; no sequential edges for these messages.
+  if(unresolved.length>40)unresolved=unresolved.slice(-40);
+  return {messages,unresolved};
+}

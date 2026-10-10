@@ -1,5 +1,5 @@
 import { pairMessages, routeKey, safePoint } from '../core/graph.mjs';
-import { mergeVisibleMessages } from '../core/history.mjs';
+import { mergeAnchoredHistory } from '../core/history.mjs';
 import { conversationId, createPendingBranch, confirmBranch, branchRelations, stableMessageId } from '../core/branch.mjs';
 
 // Single owner: native conversation is truth; this controller only projects
@@ -11,7 +11,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let history = {status:'idle',steps:0};
   let branches=[],pendingBranch=null,branchError=null,bookmarks=[];
   const volatilePreviews=new Map(); // Up to eight loaded conversations, never Chrome Storage.
-  let running = false, storeTimer = 0, generation = 0;
+  let running = false, storeTimer = 0, generation = 0, lifecycle=0;
+  let pendingLayout=null,writeTail=Promise.resolve(),unresolved=[];
   let observer = null;
   let unsubscribeBranches=()=>{};
   let messageIndex = new Map(), turnIndex = new Map();
@@ -38,9 +39,10 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     cacheLatest();notify({ type:'snapshot' });
   };
   async function loadRoute(path) {
+    flushLayout();
     route = routeKey(path);
     const seq = ++generation;
-    positions = {};bookmarks=[];
+    positions = {};bookmarks=[];unresolved=[];
     messages = [];
     turns = [];
     history={status:'idle',steps:0};branchError=null;
@@ -52,13 +54,13 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
         layoutStorage.read(route),branchStorage?.list?.() ?? [],branchStorage?.pending?.() ?? null,
         layoutStorage.readBookmarks?.(route) ?? []
       ]);
-      if (seq === generation) {
+      if (seq === generation && running) {
         positions=restored;branches=existing;pendingBranch=pending;
         bookmarks=loadedBookmarks;notify({type:'layout'});
       }
     } catch {
       // Native conversation reading remains usable if layout storage fails.
-      if (seq === generation) notify({ type:'layout' });
+      if (seq === generation && running) notify({ type:'layout' });
     }
   }
   async function reloadBranchState(){
@@ -72,17 +74,23 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   }
   const callbacks = {
     onSnapshot(items) {
-      const merged = mergeVisibleMessages(messages,items,history.status==='loading' && history.phase==='up');
-      const changed = merged.length !== messages.length || merged.some((row,i) =>
-        row.id !== messages[i]?.id || row.role !== messages[i]?.role || row.text !== messages[i]?.text);
-      messages = merged;
+      if(!running)return {count:messages.length,firstId:messages[0]?.id??null};
+      const merged=mergeAnchoredHistory(messages,items,unresolved,
+        history.status==='loading'&&history.phase==='up');
+      unresolved=merged.unresolved;
+      const changed=merged.messages.length!==messages.length || merged.messages.some((row,i)=>
+        row.id!==messages[i]?.id || row.role!==messages[i]?.role ||
+        row.text!==messages[i]?.text || JSON.stringify(row.blocks||[])!==JSON.stringify(messages[i]?.blocks||[]));
+      messages=merged.messages;
       if (changed) refresh();
-      return {count:messages.length,firstId:messages[0]?.id ?? null};
+      return {count:messages.length,firstId:messages[0]?.id??null,unresolved:unresolved.length};
     },
     onHistory(status) {
-      history={...status};notify({type:'history'});
+      if(!running)return;
+      history={...status,unresolved:unresolved.length};notify({type:'history'});
     },
     onPatch(item) {
+      if(!running)return;
       const i = messageIndex.get(item.id);
       if (i === undefined) { observer?.refresh(); return; }
       messages[i] = item;
@@ -92,29 +100,45 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const updated = original.userId === item.id
         ? { ...original, prompt:item.text }
         : { ...original, answer:item.text, answerBlocks:item.blocks || [], pending:!item.text.trim() };
-      if (original.prompt === updated.prompt && original.answer === updated.answer) return;
+      if (original.prompt === updated.prompt && original.answer === updated.answer &&
+          JSON.stringify(original.answerBlocks||[])===JSON.stringify(updated.answerBlocks||[])) return;
       turns[index] = updated;
       if(index===turns.length-1)cacheLatest();
       notify({ type:'patch', turnId:updated.id });
     },
-    onRoute(path) { loadRoute(path); }
+    onRoute(path) { if(running)loadRoute(path); }
   };
-  const save = () => {
+  function flushLayout(){
     clearTimeout(storeTimer);
-    storeTimer = setTimeout(() => layoutStorage.write(route, positions).catch(() => {}), 250);
+    if(!pendingLayout)return writeTail;
+    const {key,snapshot}=pendingLayout;pendingLayout=null;
+    writeTail=writeTail.catch(()=>{}).then(()=>layoutStorage.write(key,snapshot));
+    writeTail.catch(()=>{});
+    return writeTail;
+  }
+  const save=()=>{
+    pendingLayout={key:route,snapshot:{...positions}};
+    clearTimeout(storeTimer);
+    storeTimer=setTimeout(flushLayout,250);
   };
   return {
     async start() {
-      if (running) return;
-      running = true;
+      if(running)return;
+      running=true;
+      const token=++lifecycle;
       await loadRoute(pathname());
-      observer = observe(callbacks);
-      observer.start();
+      if(!running || token!==lifecycle)return;
+      const next=observe(callbacks);
+      if(!running || token!==lifecycle)return;
+      observer=next;observer.start();
       unsubscribeBranches=branchStorage?.subscribe?.(reloadBranchState)||(()=>{});
     },
     stop() {
-      running=false;unsubscribeBranches();unsubscribeBranches=()=>{};
-      observer?.stop();observer=null;clearTimeout(storeTimer);
+      if(!running)return;
+      running=false;++lifecycle;++generation;
+      flushLayout();
+      unsubscribeBranches();unsubscribeBranches=()=>{};
+      observer?.stop();observer=null;
     },
     getSource(id) { return observer?.getElement(id) || null; },
     refresh() { observer?.refresh();observer?.loadEarlier?.(); },
@@ -187,8 +211,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       notify({ type:'position',turnId:id }); save();
     },
     async persist() {
-      clearTimeout(storeTimer);
-      await layoutStorage.write(route, positions);
+      return flushLayout();
     },
     snapshot() { return {route,turns,positions,history,bookmarks,
       previews:Object.fromEntries(volatilePreviews),branches,pendingBranch,branchError,
