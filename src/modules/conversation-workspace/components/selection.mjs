@@ -1,3 +1,25 @@
+// Resolve selections inside gptdraw's closed Shadow DOM. Chromium exposes
+// ShadowRoot.getSelection(); composed ranges are the standards-based fallback.
+export function selectionForAnswer(answer){
+  const shadow=answer?.getRootNode?.();
+  const local=shadow?.getSelection?.();
+  if(local?.rangeCount && !local.isCollapsed)return local;
+  const doc=answer?.ownerDocument||globalThis.document;
+  const global=doc?.getSelection?.();
+  if(global?.getComposedRanges && shadow?.host && doc?.createRange){
+    try {
+      const source=global.getComposedRanges({shadowRoots:[shadow]})?.[0];
+      if(source){
+        const range=doc.createRange();
+        range.setStart(source.startContainer,source.startOffset);
+        range.setEnd(source.endContainer,source.endOffset);
+        return {rangeCount:1,isCollapsed:range.collapsed,getRangeAt:()=>range};
+      }
+    }catch{/* Fall through to the conventional document selection. */}
+  }
+  return local?.rangeCount?local:global;
+}
+
 // Ephemeral selection metadata from gptdraw's rendered answer, never a
 // native ChatGPT DOM scraper. Supports selections crossing multiple blocks.
 export function readAnswerSelection(answer,selection){
