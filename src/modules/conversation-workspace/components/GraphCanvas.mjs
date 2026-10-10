@@ -157,7 +157,14 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       maxCameraFrameMs=Math.max(maxCameraFrameMs,lastCameraFrameMs);
     });
   };
-  const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
+  const point = (turn,index) => {
+    // During a card drag, its visible position is the geometry source.
+    if(dragging?.kind==='card'&&dragging.id===turn.id){
+      return {x:parseFloat(dragging.element.style.left)||0,
+        y:parseFloat(dragging.element.style.top)||0};
+    }
+    return positions[turn.id]||stablePositions.get(turn.id)||layoutPoint(index);
+  };
 
   function rebuildIndex(){
     spatialIndex=buildSpatialIndex(turns.map((turn,i)=>{
