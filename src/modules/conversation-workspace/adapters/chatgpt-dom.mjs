@@ -134,6 +134,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   let blockCache=new WeakMap();
   let backfillAbort = null, historyStarted = false;
   let domScans=0,domPatches=0,userActivityUntil=0;
+  let scanLastMs=0,scanMaxMs=0,patchLastMs=0,patchMaxMs=0;
   const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
   function startBackfill() {
     if (!mounted || historyStarted || backfillAbort || !onHistory ||
@@ -155,6 +156,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     }).finally(() => {if(backfillAbort === controller)backfillAbort = null;});
   }
   const snapshot = () => {
+    const started=performance.now();
     domScans++;
     blockCache=new WeakMap();
     const rows = collectMessages(root,{cache:blockCache});
@@ -167,6 +169,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       if (roleEl) targetIds.set(roleEl,row.id);
     }
     const cumulative=onSnapshot(rows);
+    scanLastMs=Math.round((performance.now()-started)*100)/100;
+    scanMaxMs=Math.max(scanMaxMs,scanLastMs);
     if (!historyStarted) queueMicrotask(startBackfill);
     return cumulative;
   };
@@ -193,6 +197,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       rescan = false; pending.clear(); snapshot(); return;
     }
     for (const [id,dirtyNodes] of pending) {
+      const started=performance.now();
       const previous = nodes.get(id);
       if (!previous) continue;
       const extracted=previous.role==='assistant'?assistantFromTurn(previous.element,{cache:blockCache,dirtyNodes}):null;
@@ -208,6 +213,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
         targetIds.set(source,id);
         domPatches++;onPatch(updated);
       }
+      patchLastMs=Math.round((performance.now()-started)*100)/100;
+      patchMaxMs=Math.max(patchMaxMs,patchLastMs);
     }
     pending.clear();
   };
@@ -241,7 +248,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     root = nextRoot;
     if (!root) return;
     observer = new MutationObserver(onMutations);
-    observer.observe(root,{subtree:true,childList:true,characterData:true});
+    observer.observe(root,{subtree:true,childList:true,characterData:true,
+      attributes:true,attributeFilter:['href']});
   }
   function connect() {
     if (!mounted) return;
@@ -266,6 +274,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     getDiagnostics(){
       return {domScans,domPatches,rootPresent:!!root,
         liveDOMMessages:nodes.size,historyActive:!!backfillAbort,
+        scanLastMs,scanMaxMs,patchLastMs,patchMaxMs,
         idSource:nodes.size && [...nodes.keys()].some(id=>id.includes('visible:'))?'mixed':'native-or-candidate'};
     },
     stop() {
