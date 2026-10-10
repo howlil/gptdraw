@@ -22,7 +22,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let lastVisibleByNative=new Map();
   const observedWindows=new Map();
   const contentKey=row=>row.role+'\0'+row.text;
-  function normalizeVisible(items){
+  function normalizeVisible(items,observation={}){
     if(!items.length)return items;
     const fingerprint=items.map(contentKey).join('\u0002');
     const windowIds=observedWindows.get(fingerprint);
@@ -43,6 +43,15 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       let id=windowIds?.[index];
       const recent=lastVisibleByNative.get(row.id);
       if(!id && recent?.role===row.role && recent.text===row.text)
+        id=recent.id;
+      // A streaming assistant may replace its native DOM subtree without
+      // changing its positional data-testid. Keep the current observed ID
+      // only in the same active window, never during an actual scroll scan.
+      if(!id && recent?.role===row.role && observation.moved!==true &&
+         history.status!=='loading' &&
+         (recent.element===row.element ||
+          (row.role==='assistant' && recent.text.length>0 &&
+           row.text.startsWith(recent.text))))
         id=recent.id;
       if(!id && row.text.length>=28 &&
           counts.get(contentKey(row))===1 && visibleCounts.get(contentKey(row))===1)
@@ -131,7 +140,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   const callbacks = {
     onSnapshot(items,observation={}) {
       if(!running)return {count:messages.length,firstId:messages[0]?.id??null};
-      items=normalizeVisible(items);
+      items=normalizeVisible(items,observation);
       // Compare only the currently scanned DOM window, not every old message
       // accumulated in RAM. Reuse prior records for unchanged windows.
       const previous=new Map(messages.map(row=>[row.id,row]));
