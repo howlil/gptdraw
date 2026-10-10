@@ -46,3 +46,13 @@ changing the spatial grid or virtualized DOM boundaries.
 - During a long old-chat scan, pan/search and hide/restore the tab. History must yield, retain anchored order and eventually finish after tab becomes visible.
 - Search a 2,000-turn fixture; outline initially mounts a bounded result set. Minimap must remain accurate after changing layout.
 - Diagnostics may export numeric/status metrics only, not actual conversation text or native message IDs.
+
+## Selected text → Ask GPT / Fork regression
+
+1. Select a phrase in an answer card, including in a long scrollable response. A contextual toolbar appears near the selection, not as a permanent floating launcher.
+2. Repeat with keyboard selection and mobile/touch selection; select across two blocks. Select outside the response and verify no quote toolbar.
+3. Choose **Ask GPT**: the actual ChatGPT composer is populated with the quoted excerpt in the **same conversation**, is focused, and the message is **not sent automatically**.
+4. Set up an existing unsent ChatGPT draft, then retry Ask GPT. The draft must remain unchanged and the user must see an error.
+5. Select a phrase in Focus Reading and compare again. Selection remains useful after streaming updates.
+6. Choose **Fork**: the native source assistant action opens only if available; selected plaintext is not persisted, and confirmation requires the actual new conversation. Paste the copied quote into the child to focus it.
+7. Test Chrome closed-Shadow DOM selection; if the toolbar does not appear, capture compatibility diagnostics (counts/status only). Browser fixture tests alone do not prove this integration.

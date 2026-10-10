@@ -59,7 +59,9 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 ## Fork and quote semantics
 
 - **Fork message:** user-triggered native ChatGPT Branch action from the assistant's source message only when its real menu is discoverable; show genuine unavailable states.
-- **Fork selected quote:** anchor a single selected response block with block index, offsets and SHA-256 digest. Do not persist selected plaintext. Copy quote on user gesture when permission permits; user pastes it in child to focus the model. This does not change native ChatGPT's inherited context.
+- **Contextual selection:** selecting text in a response card or Focus Reading reveals **Ask GPT** and **Fork** beside the range (including multi-block selection); no footer-based hidden quote button or permanent ChatGPT-page launcher.
+- **Ask GPT:** prepare the selected excerpt in the *current conversation's native composer*, return to ChatGPT and let the user finish the question and send. Never auto-submit or overwrite an existing native draft.
+- **Fork selected quote:** anchor the selected quote with its first response-block index, text extent and SHA-256 digest; do not persist selected plaintext. Copy on user gesture when permitted; the user pastes it into the native child branch to focus follow-up context. This does not isolate the inherited native model context.
 - **Confirmation:** pending is not a graph edge. User confirms parent/child only after native child exists. Reject cycles and double-parent linkage. Render confirmed lineage as dashed edges and navigable child/parent nodes.
 - **Continue earlier:** create native branch first, not submit silently to the active conversation.
 

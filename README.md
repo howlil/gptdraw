@@ -62,7 +62,7 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 
 ## Native branching workflow (requires real-site verification)
 
-1. In an existing ChatGPT conversation, choose **Fork** on an assistant card (or select text in a single answer block and choose **Fork selected quote**).
+1. In an existing ChatGPT conversation, choose **Fork** on an assistant card. To target a quote, highlight text across one or more response blocks and use the contextual **Fork** action beside the selection.
 2. If gptdraw detects that exact message's native **More actions → Branch in new chat**, it opens the native Branch action. If not, the UI shows why it cannot safely proceed; no phantom branch is created.
 3. In the new ChatGPT child conversation, confirm **Link this branch** only when you know this chat was created from that source. Confirmation saves parent/child metadata (not conversation text), rejects duplicate parents/cycles, and displays parent/child navigation nodes.
 4. **Continue** on the latest card sends through the native ChatGPT composer. **Continue as branch** on an earlier card invokes native Fork first. Quote selections are *focus references*: paste a copied quote into the child to guide its next prompt; it does not automatically strip ChatGPT's original context.
@@ -72,6 +72,13 @@ For 80+ loaded turns, a spatial grid index selects nearby cards (overscan). Pan/
 Assistant streaming tracks the changed native DOM nodes and reuses unchanged typed response blocks, with full message fallback for structural changes. The controller and Reading panel use block identity instead of repeated JSON serialization on token updates. During background history scanning, the browser yields for user pan/zoom/search or hidden tabs, and coalesces structural canvas commits without delaying manual Refresh.
 
 Search caches normalized text per stable turn content and limits the initial outline to 60 results with Show more. Diagnostics include only numeric DOM scan/patch timing, camera/frame/edge reconciliation costs, mounted card counts, and SVG node allocation counters. Performance tests prove invariants, **not measured Chrome FPS**.
+
+## Ask GPT from highlighted text
+
+- Select text inside a gptdraw answer card or Focus Reading panel. A small toolbar appears near the highlight with **Ask GPT** and **Fork**. It is never a permanent floating control over ChatGPT.
+- **Ask GPT** prepares a quoted excerpt in the **native ChatGPT composer in the current chat**, then returns you to ChatGPT to type your question. It does **not** send automatically and refuses to overwrite an existing unsent draft.
+- **Fork** invokes the **real native Branch in new chat** action from the owning assistant message and stores only quote offsets/digest in pending metadata. Copying the selection is best-effort; paste the quote into the child chat to direct its next question. Fork does not automatically narrow the native model's inherited context.
+- Range extraction uses the extension ShadowRoot selection with a standards-based composed-range fallback. No selected plaintext is written to extension storage.
 
 ## Branch workspace, minimap and reading tools
 
