@@ -6,7 +6,7 @@ const SEND = 'button[data-testid="send-button"],#composer-submit-button,button[a
 export function findNativeComposer(doc) {
   return doc.querySelector(EDITOR);
 }
-export async function submitNativePrompt(doc, prompt, nextFrame = callback => requestAnimationFrame(callback)) {
+export async function prepareNativePrompt(doc, prompt) {
   const text = String(prompt || '').trim();
   if (!text) throw new Error('Write a message first.');
   if (text.length > 12000) throw new Error('Message is too long.');
@@ -37,6 +37,10 @@ export async function submitNativePrompt(doc, prompt, nextFrame = callback => re
     }
   }
 
+  return {status:'prepared'};
+}
+export async function submitNativePrompt(doc,prompt,nextFrame=callback=>requestAnimationFrame(callback)) {
+  const prepared=await prepareNativePrompt(doc,prompt);
   // Let the site's actual composer react to its input event before clicking.
   await new Promise(resolve => nextFrame(resolve));
   const parent=editor.closest?.('form') || doc;
