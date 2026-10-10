@@ -1,5 +1,6 @@
-// Merge virtualized DOM pages while retaining their observed chronological
-// order in volatile memory. Linear in existing+visible messages.
+// Native DOM windows can be virtualized and recycled. Never treat a
+// positional data-testid as chronology. A scroll-observed disjoint window may
+// join the display in the observed direction, but carries a DISCONNECTED edge.
 export function mergeVisibleMessages(known,visible,loadingEarlier=false) {
   if(!known.length)return visible.slice();
   if(!visible.length)return known.slice();
@@ -11,12 +12,10 @@ export function mergeVisibleMessages(known,visible,loadingEarlier=false) {
     if(oldIds.has(item.id)){
       hasOverlap=true;
       if(waiting.length){
-        // New items immediately preceding a known item belong before it.
-        before.set(item.id,[...(before.get(item.id)||[]),...waiting]);
-        waiting=[];
+        before.set(item.id,[...(before.get(item.id)||[]),...waiting]);waiting=[];
       }
       previous=item.id;
-    } else waiting.push(item);
+    }else waiting.push(item);
   }
   if(waiting.length){
     if(hasOverlap && previous!==null)after.set(previous,waiting);
@@ -31,26 +30,52 @@ export function mergeVisibleMessages(known,visible,loadingEarlier=false) {
   }
   return merged;
 }
+function canAnchor(old,now) {
+  if(old.id!==now.id || old.role!==now.role)return false;
+  if(old.identity==='stable' && now.identity==='stable')return true;
+  // Turn keys or session-only observed IDs need content corroboration. A
+  // recycled positional index with the same ID is never enough.
+  return (old.identity==='candidate'||old.identity==='ephemeral'||
+    now.identity==='candidate'||now.identity==='ephemeral')
+    && old.text===now.text;
+}
 
-
-// Do not fabricate chronological order between two disjoint virtualized
-// windows. Unanchored pages stay in memory until a later scan overlaps one.
-export function mergeAnchoredHistory(known,visible,previousUnresolved=[],loadingEarlier=false) {
+// A scroll step is directional evidence that one DOM window was reached
+// before/after another, but NOT evidence of a contiguous chronological edge.
+export function mergeAnchoredHistory(known,visible,previousUnresolved=[],
+    loadingEarlier=false,observation={}) {
   let messages=known.slice(),unresolved=[...previousUnresolved];
   const merge=page=>{
     if(!page.length)return true;
     if(!messages.length){messages=page.slice();return true;}
-    // Recycled data-testid or unverified turn-key overlap is not ordering
-    // evidence. It can refer to an entirely different virtualized message.
-    const safe=new Set(messages.filter(x=>!x.identity||x.identity==='stable').map(x=>x.id));
-    const anchored=page.some(x=>(!x.identity||x.identity==='stable')&&safe.has(x.id));
+    const previous=new Map(messages.map(row=>[row.id,row]));
+    const anchored=page.some(row=>{
+      const old=previous.get(row.id);
+      return old&&canAnchor(old,row);
+    });
     if(!anchored)return false;
     messages=mergeVisibleMessages(messages,page,loadingEarlier);
     return true;
   };
-  if(!merge(visible)&&visible.length&&!unresolved.some(p=>p.length===visible.length &&
-    p.every((row,i)=>row.id===visible[i].id)))unresolved.push(visible.slice());
-  // Iterate until no more anchored segments can be resolved.
+  if(!merge(visible)&&visible.length){
+    const validScan=observation?.moved===true &&
+      (observation.direction==='up'||observation.direction==='down');
+    const knownIds=new Set(messages.map(row=>row.id));
+    const newRows=visible.filter(row=>!knownIds.has(row.id));
+    if(validScan && newRows.length && messages.length){
+      if(observation.direction==='up'){
+        // The join is not proven adjacent. Suppress its SVG connector.
+        const first={...messages[0],breakBefore:true};
+        messages=[...newRows,first,...messages.slice(1)];
+      }else{
+        messages=[...messages,{...newRows[0],breakBefore:true},...newRows.slice(1)];
+      }
+    }else if(!unresolved.some(page=>page.length===visible.length &&
+      page.every((row,i)=>row.id===visible[i].id))){
+      unresolved.push(visible.slice());
+    }
+  }
+  // A newly anchored/observed window may resolve a former pending window.
   let progress=true;
   while(progress){
     progress=false;
@@ -61,7 +86,6 @@ export function mergeAnchoredHistory(known,visible,previousUnresolved=[],loading
     }
     unresolved=rest;
   }
-  // Cap unresolved UI-only pages; no sequential edges for these messages.
   if(unresolved.length>40)unresolved=unresolved.slice(-40);
   return {messages,unresolved};
 }
