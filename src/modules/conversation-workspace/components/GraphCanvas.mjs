@@ -98,7 +98,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const cards = new Map();
   const branchNodes=new Map();
   let branchPositions=new Map(),branchEdges=[],branchCurrent=null,visibleQueued=false;
-  let spatialIndex=buildSpatialIndex([]);
+  let spatialIndex=buildSpatialIndex([]),lastViewportUpdateMs=0,maxViewportUpdateMs=0;
   const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(()=>queueEdges()):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   const renderTransform = () => {
@@ -116,6 +116,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     }));
   }
   function syncVisibleCards(){
+    const started=performance.now();
     visibleQueued=false;
     const visible=turns.length<80?turns.map(t=>t.id):spatialIndex.query({
       panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight
@@ -152,6 +153,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       }
     }
     applySearch();queueEdges();
+    lastViewportUpdateMs=Math.round((performance.now()-started)*100)/100;
+    maxViewportUpdateMs=Math.max(maxViewportUpdateMs,lastViewportUpdateMs);
   }
   function scheduleVisible(){
     if(!visibleQueued){visibleQueued=true;requestAnimationFrame(syncVisibleCards);}
@@ -384,7 +387,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     closeInspector:()=>inspector.hide(),
     inspectorOpen:()=>inspector.visible,
     stats:()=>({mountedCards:cards.size,canvasTurns:turns.length,
-      renderedEdges:edgeLayer.childElementCount,branchNodes:branchNodes.size}),
+      renderedEdges:edgeLayer.childElementCount,branchNodes:branchNodes.size,
+      lastViewportUpdateMs,maxViewportUpdateMs,spatialIndexEntries:spatialIndex.count}),
     nextTurn(step=1){
       if(!turns.length)return;
       const index=turnIndexById.get(focusedId);

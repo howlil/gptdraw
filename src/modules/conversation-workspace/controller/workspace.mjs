@@ -195,6 +195,11 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       });
       if(branchStorage.begin)await branchStorage.begin(record);
       else await branchStorage.setPending(record);
+      if(!running||route!==forkRoute||lifecycle!==token){
+        if(branchStorage.dismiss)await branchStorage.dismiss(record.id);
+        else await branchStorage.clearPending();
+        throw new Error('Conversation changed before native Fork activation.');
+      }
       pendingBranch=record;branchError=null;notify({type:'branch'});
       try { native.activate(); }
       catch(error) {

@@ -332,3 +332,21 @@ ol.g-block-list {list-style:decimal;}
    restore native touch scrolling while it is open. */
 .g-viewport:has(.g-inspection:not([hidden])) {touch-action:pan-y;}
 .g-inspection,.g-inspection-columns,.g-inspect-column {touch-action:pan-y;}
+
+/* Diagnostics never display conversation text; a compact, dismissible panel. */
+.g-diagnostics {position:absolute;top:57px;right:13px;width:min(350px,calc(100% - 26px));
+  max-height:min(70vh,520px);overflow:auto;z-index:9;pointer-events:auto;
+  border:1px solid var(--g-border);border-radius:12px;background:var(--g-surface);
+  box-shadow:0 12px 38px rgba(0,0,0,.12);padding:12px;}
+.g-diagnostics[hidden]{display:none!important;}
+.g-diagnostics-head {display:flex;justify-content:space-between;align-items:center;
+  gap:8px;padding-bottom:10px;border-bottom:1px solid var(--g-border);}
+.g-diagnostics-head strong{font-size:13px;font-weight:600;}
+.g-diagnostics-head button,.g-diagnostics-actions button {
+  border:1px solid var(--g-border);border-radius:8px;padding:6px 9px;
+  background:var(--g-panel);color:var(--g-text);font-size:11px;}
+.g-diagnostics-rows {display:grid;grid-template-columns:minmax(0,1fr) auto;
+  column-gap:18px;row-gap:10px;margin:12px 0;font-size:11px;line-height:17px;}
+.g-diagnostics-rows dt{color:var(--g-muted);overflow-wrap:anywhere;}
+.g-diagnostics-rows dd{margin:0;font-variant-numeric:tabular-nums;}
+.g-diagnostics-actions{display:flex;align-items:center;gap:9px;font-size:11px;}
