@@ -7,7 +7,7 @@ test('grid search finds only nearby cards after pan, zoom and negative drag',()=
     {id:'b',x:1600,y:100,w:400,h:600},
     {id:'c',x:-1800,y:-1400,w:400,h:600}]);
   const camera={panX:0,panY:0,scale:1,width:1000,height:850};
-  assert.deepEqual(index.query(camera).sort(),['a','b']);
+  assert.deepEqual(index.query(camera).sort(),['a']);
   assert.ok(index.query({...camera,panX:2000,panY:1400}).includes('c'));
   assert.ok(index.query({...camera,scale:.6}).includes('b'));
 });
