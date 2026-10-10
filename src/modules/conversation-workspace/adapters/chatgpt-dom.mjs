@@ -21,12 +21,12 @@ function readSource(node, role) {
   const selector = role === 'user' ? USER_CONTENT : RESPONSE_CONTENT;
   return node.querySelector?.(selector) || node.querySelector?.(ROLE_SELECTOR) || node;
 }
-function assistantFromTurn(node) {
-  const own=extractAssistantContent(node);
+function assistantFromTurn(node,options={}) {
+  const own=extractAssistantContent(node,options);
   if(own.text)return own;
   const wrapper=node.closest?.(TURN_SELECTOR) || node.closest?.(GROUP_SELECTOR);
   if(!wrapper || wrapper===node)return own;
-  const surrounding=extractAssistantContent(wrapper);
+  const surrounding=extractAssistantContent(wrapper,options);
   return surrounding.text?surrounding:own;
 }
 function idOf(node, role, ordinal) {
@@ -50,7 +50,7 @@ export function findChatMain(doc) {
     || mains[0];
 }
 
-export function collectMessages(root) {
+export function collectMessages(root,options={}) {
   if (!root?.querySelectorAll) return [];
   const wrappers = [...root.querySelectorAll(TURN_SELECTOR)];
   const candidates = [];
@@ -85,7 +85,7 @@ export function collectMessages(root) {
     const id = idOf(node,role,result.length);
     if (seen.has(id)) continue;
     seen.add(id);
-    const extracted=role==='assistant'?assistantFromTurn(node):null;
+    const extracted=role==='assistant'?assistantFromTurn(node,options):null;
     const source=extracted?.source || readSource(node,role);
     result.push({id,role,text:extracted?.text ?? (source.textContent || '').trim(),
       blocks:extracted?.blocks || [],identity:/:(?:conversation-turn-\d+|visible:)/.test(id)?'ephemeral':id.includes('turn-key:')?'candidate':'stable',element:node,source});
@@ -111,8 +111,8 @@ export function collectMessages(root) {
         // output: that would duplicate the user's prompt as a fake answer.
         if (source === group || source.contains?.(user)) source = marker;
         // Group wrappers can keep rendered Markdown outside the role marker.
-        const containerAnswer=extractAssistantContent(group);
-        const answer=containerAnswer.text?containerAnswer:extractAssistantContent(source);
+        const containerAnswer=extractAssistantContent(group,options);
+        const answer=containerAnswer.text?containerAnswer:extractAssistantContent(source,options);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
           text:answer.text,blocks:answer.blocks,element:source,source:answer.source
@@ -130,7 +130,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   schedule = callback => requestAnimationFrame(callback) }) {
   let root = null, observer = null, bodyObserver = null, mounted = false, queued = false;
   let pathname = document.defaultView?.location.pathname || '/';
-  let nodes = new Map(), targetIds = new WeakMap(), pending = new Set(), rescan = true;
+  let nodes = new Map(), targetIds = new WeakMap(), pending = new Map(), rescan = true;
+  let blockCache=new WeakMap();
   let backfillAbort = null, historyStarted = false;
   let domScans=0,domPatches=0;
   const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
@@ -153,7 +154,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   }
   const snapshot = () => {
     domScans++;
-    const rows = collectMessages(root);
+    blockCache=new WeakMap();
+    const rows = collectMessages(root,{cache:blockCache});
     nodes = new Map(rows.map(row => [row.id,row]));
     targetIds = new WeakMap();
     for (const row of rows) {
@@ -188,14 +190,18 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     if (rescan) {
       rescan = false; pending.clear(); snapshot(); return;
     }
-    for (const id of pending) {
+    for (const [id,dirtyNodes] of pending) {
       const previous = nodes.get(id);
       if (!previous) continue;
-      const extracted=previous.role==='assistant'?assistantFromTurn(previous.element):null;
+      const extracted=previous.role==='assistant'?assistantFromTurn(previous.element,{cache:blockCache,dirtyNodes}):null;
       const source=extracted?.source || readSource(previous.element,previous.role);
       const text = extracted?.text ?? (source.textContent || '').trim();
-      if (text !== previous.text || JSON.stringify(extracted?.blocks||[])!==JSON.stringify(previous.blocks||[])) {
-        const updated = { ...previous,text,source,blocks:extracted?.blocks || [] };
+      const blocks=extracted?.blocks||[];
+      const previousBlocks=previous.blocks||[];
+      const blocksChanged=blocks.length!==previousBlocks.length ||
+        blocks.some((block,index)=>block!==previousBlocks[index]);
+      if (text !== previous.text || blocksChanged) {
+        const updated = { ...previous,text,source,blocks };
         nodes.set(id,updated);
         targetIds.set(source,id);
         domPatches++;onPatch(updated);
@@ -208,8 +214,10 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     for (const mutation of mutations) {
       if (mutation.type === 'characterData') {
         const id = turnFor(mutation.target);
-        if (id) pending.add(id);
-        else rescan = true;
+        if (id){
+          if(!pending.has(id))pending.set(id,new Set());
+          pending.get(id).add(mutation.target);
+        } else rescan = true;
       } else {
         const id = turnFor(mutation.target);
         const structural = [...mutation.addedNodes,...mutation.removedNodes].some(node =>
@@ -218,7 +226,10 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
             || node.querySelector?.(TURN_SELECTOR) || node.querySelector?.(ROLE_SELECTOR) || node.querySelector?.(GROUP_SELECTOR)
           ));
         if (structural || !id) rescan = true;
-        else pending.add(id);
+        else {
+          if(!pending.has(id))pending.set(id,new Set());
+          pending.get(id).add(mutation.target);
+        }
       }
     }
     queue();
@@ -258,7 +269,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       mounted = false;cancelBackfill();historyStarted=false;observer?.disconnect();bodyObserver?.disconnect();
       document.defaultView?.removeEventListener('popstate',nav);
       root = null;observer = null;bodyObserver = null;queued = false;
-      nodes.clear();pending.clear();targetIds = new WeakMap();rescan = true;
+      nodes.clear();pending.clear();targetIds = new WeakMap();blockCache=new WeakMap();rescan = true;
     }
   };
 }
