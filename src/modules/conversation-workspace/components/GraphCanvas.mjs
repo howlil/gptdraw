@@ -8,7 +8,7 @@ import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
 import { buildSpatialIndex } from '../core/spatial-index.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation }) {
+export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation, onActivity=()=>{} }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -344,7 +344,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   };
   viewport.addEventListener('wheel',event=>{
     if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
+    event.preventDefault();onActivity();
     const rect=viewport.getBoundingClientRect();
     zoom(scale+(event.deltaY<0?.08:-.08),event.clientX-rect.left,event.clientY-rect.top);
   },{passive:false});
@@ -361,10 +361,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     } else if (event.target===viewport||event.target===stage||event.target===edgeLayer) {
       dragging={kind:'pan',x:panX,y:panY,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
     }
-    if(dragging)viewport.setPointerCapture(event.pointerId);
+    if(dragging){onActivity();viewport.setPointerCapture(event.pointerId);}
   });
   viewport.addEventListener('pointermove',event=>{
     if(!dragging || event.pointerId!==dragging.pointerId)return;
+    onActivity();
     const dx=event.clientX-dragging.clientX,dy=event.clientY-dragging.clientY;
     if(dragging.kind==='pan'){panX=dragging.x+dx;panY=dragging.y+dy;renderTransform();}
     else {

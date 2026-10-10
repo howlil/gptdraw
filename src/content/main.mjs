@@ -102,6 +102,7 @@ if (!document.getElementById(HOST_ID)) {
       else window.location.assign('/c/'+encodeURIComponent(id));
     },
     onDiagnostics:()=>controller.getDiagnostics(),
+    onActivity:()=>controller.markInteraction(),
     onRefresh:()=>controller.refresh(),
     onMove:(id,position)=>controller.move(id,position)
   });
