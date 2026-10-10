@@ -1,9 +1,9 @@
 import { control,icon } from '../../../components/ui/icons.mjs';
-import { quoteAnchor } from '../core/branch.mjs';
+import { readAnswerSelection } from './selection.mjs';
 
 import { createResponseBlock } from './ResponseBlock.mjs';
 
-export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,onRead,onCompare,onBookmark,isLatest=false}) {
+export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,onRead,onCompare,onBookmark,onSelection,isLatest=false}) {
   const card=document.createElement('article');
   card.className='g-card';
   card.dataset.turnId=turn.id;card.tabIndex=-1;
@@ -45,35 +45,20 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   const fork=document.createElement('button');fork.type='button';
   fork.className='g-text-action';fork.textContent='Fork';
   fork.title='Use ChatGPT native Branch in new chat';
-  const forkQuote=document.createElement('button');forkQuote.type='button';
-  forkQuote.className='g-text-action';forkQuote.textContent='Fork selected quote';
-  forkQuote.hidden=true;
   const forkStatus=document.createElement('span');forkStatus.className='g-fork-status';
   forkStatus.setAttribute('role','status');
-  let selected=null;
-  const updateSelection=()=>{
-    const selection=card.getRootNode()?.getSelection?.() || document.getSelection?.();
-    if(!selection||selection.isCollapsed||!selection.rangeCount){selected=null;forkQuote.hidden=true;return;}
-    const range=selection.getRangeAt(0);
-    const parent=range.startContainer?.nodeType===1?range.startContainer:range.startContainer?.parentElement;
-    const block=parent?.closest?.('.g-answer-block');
-    const end=range.endContainer?.nodeType===1?range.endContainer:range.endContainer?.parentElement;
-    if(!block||!block.contains(end) || !answer.contains(block)){
-      selected=null;forkQuote.hidden=true;return;
-    }
-    const blockIndex=[...answer.children].indexOf(block);
-    const prefix=range.cloneRange();
-    prefix.selectNodeContents(block);prefix.setEnd(range.startContainer,range.startOffset);
-    const start=prefix.toString().length, text=range.toString();
-    if(!text.trim()){selected=null;forkQuote.hidden=true;return;}
-    selected={blockIndex,start,end:start+text.length,text};
-    forkQuote.hidden=false;
+  const announceSelection=()=>{
+    const rootSelection=card.getRootNode()?.getSelection?.();
+    const selection=rootSelection?.rangeCount?rootSelection:document.getSelection?.();
+    const quote=readAnswerSelection(answer,selection);
+    onSelection?.(quote?{...quote,turnId:turn.id}:null);
   };
-  answer.addEventListener('mouseup',updateSelection);
-  answer.addEventListener('keyup',updateSelection);
+  answer.addEventListener('mouseup',announceSelection);
+  answer.addEventListener('keyup',announceSelection);
+  answer.addEventListener('touchend',()=>requestAnimationFrame(announceSelection));
   async function runFork(anchor) {
     forkStatus.textContent='Opening native ChatGPT Branch…';
-    fork.disabled=true;forkQuote.disabled=true;
+    fork.disabled=true;
     try {
       await onFork(turn.id,anchor);
       forkStatus.textContent='Create the branch in ChatGPT; confirm it when opened.';
@@ -81,23 +66,9 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     } catch(error){
       forkStatus.textContent=error.message||'Native Branch unavailable.';
       return false;
-    } finally {fork.disabled=false;forkQuote.disabled=false;}
+    } finally {fork.disabled=false;}
   }
   fork.addEventListener('click',()=>runFork(null));
-  forkQuote.addEventListener('click',async()=>{
-    if(!selected)return;
-    try{
-      // User-triggered clipboard copy is best-effort. The selected quote
-      // never enters persistent extension metadata.
-      let copied=false;
-      try {await navigator.clipboard.writeText(selected.text);copied=true;}catch {}
-      const anchor=await quoteAnchor(selected);
-      const opened=await runFork(anchor);
-      if(opened)forkStatus.textContent=copied
-        ? 'Quote anchored and copied. Paste it into the child chat to focus the branch.'
-        : 'Quote anchored. Copy/paste the selected quote in the child chat to focus it.';
-    }catch(error){forkStatus.textContent=error.message||'Selection is no longer valid.';}
-  });
   const read=control('Read full answer','book',()=>onRead(turn.id));
   read.classList.add('g-card-footer-icon');
   const compare=control('Select card for comparison','columns',()=>onCompare(turn.id));
@@ -109,7 +80,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     finally{bookmark.disabled=false;}
   });
   bookmark.classList.add('g-card-footer-icon');
-  footer.append(source,continueButton,fork,forkQuote,read,compare,bookmark);
+  footer.append(source,continueButton,fork,read,compare,bookmark);
   body.append(forkStatus);
   const composer=document.createElement('form');composer.className='g-node-composer';
   const composerInput=document.createElement('textarea');composerInput.rows=1;
