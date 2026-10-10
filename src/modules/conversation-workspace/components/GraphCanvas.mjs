@@ -5,7 +5,8 @@ import { createInspectionPanel } from './InspectionPanel.mjs';
 import { selectCompareId, comparisonTurns } from '../core/compare.mjs';
 import { buildBranchWorkspace } from '../core/branch-workspace.mjs';
 import { control } from '../../../components/ui/icons.mjs';
-import { layoutPoint, stabilizeLayout, isCardNearViewport } from '../core/graph.mjs';
+import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
+import { buildSpatialIndex } from '../core/spatial-index.mjs';
 
 export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation }) {
   const viewport = document.createElement('section');
@@ -97,6 +98,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const cards = new Map();
   const branchNodes=new Map();
   let branchPositions=new Map(),branchEdges=[],branchCurrent=null,visibleQueued=false;
+  let spatialIndex=buildSpatialIndex([]);
   const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(()=>queueEdges()):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   const renderTransform = () => {
@@ -107,30 +109,34 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   };
   const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
 
-  const shouldMount=(turn,index)=>{
-    if(turns.length<80)return true;
-    return isCardNearViewport(point(turn,index),
-      {panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
-  };
+  function rebuildIndex(){
+    spatialIndex=buildSpatialIndex(turns.map((turn,i)=>{
+      const p=point(turn,i);
+      return {id:turn.id,x:p.x,y:p.y,w:400,h:600};
+    }));
+  }
   function syncVisibleCards(){
     visibleQueued=false;
-    const active=new Set(turns.map(t=>t.id));
-    for(const [id,card] of cards){
-      const index=turnIndexById.get(id);
-      if(!active.has(id) || (index!==undefined && !shouldMount(turns[index],index)
-          && !(dragging?.id===id)
-          && !card.contains(card.getRootNode()?.activeElement))){
+    const visible=turns.length<80?turns.map(t=>t.id):spatialIndex.query({
+      panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight
+    });
+    const active=new Set(visible);
+    for(const [id,card] of cards) {
+      if(!active.has(id)&&!(dragging?.id===id)&&
+          !card.contains(card.getRootNode()?.activeElement)){
         cardResize?.unobserve(card);card.remove();cards.delete(id);
       }
     }
-    turns.forEach((turn,index)=>{
-      if(!shouldMount(turn,index) && !cards.has(turn.id))return;
-      let card=cards.get(turn.id);
+    for(const id of visible) {
+      const index=turnIndexById.get(id);
+      if(index===undefined)continue;
+      const turn=turns[index];
+      let card=cards.get(id);
       if(!card){
         card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,
           onRead:readTurn,onCompare:selectForCompare,onBookmark,
           isLatest:index===turns.length-1});
-        card.tabIndex=-1;cards.set(turn.id,card);stage.append(card);
+        card.tabIndex=-1;cards.set(id,card);stage.append(card);
         cardResize?.observe(card);
         card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
       } else if(card._lastTurn!==turn || card._lastIndex!==index ||
@@ -139,13 +145,12 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
       }
       card._turnIndex=index;
-      card._setBookmark(bookmarks.includes(turn.id));
-      card._setCompare(selectedCompare.includes(turn.id));
-      if(!dragging || dragging.id!==turn.id){
-        const p=point(turn,index);
-        card.style.left=p.x+'px';card.style.top=p.y+'px';
+      card._setBookmark(bookmarks.includes(id));
+      card._setCompare(selectedCompare.includes(id));
+      if(!dragging || dragging.id!==id){
+        const p=point(turn,index);card.style.left=p.x+'px';card.style.top=p.y+'px';
       }
-    });
+    }
     applySearch();queueEdges();
   }
   function scheduleVisible(){
@@ -154,8 +159,10 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const drawEdges = () => {
     edgesQueued=false;
     edgeLayer.replaceChildren();
-    for(let i=1;i<turns.length;i++){
-      const aCard=cards.get(turns[i-1].id),bCard=cards.get(turns[i].id);
+    for(const [id,bCard] of cards){
+      const i=turnIndexById.get(id);
+      if(!i)continue;
+      const aCard=cards.get(turns[i-1].id);
       if(!aCard||!bCard)continue;
       const a=point(turns[i-1],i-1),b=point(turns[i],i);
       const x1=a.x+aCard.offsetWidth,y1=a.y+43,x2=b.x,y2=b.y+43;
@@ -277,9 +284,10 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     const head=event.target.closest?.('.g-card-head');
     if (head) {
       const card=head.closest('.g-card');
-      const turn=turns.find(t=>t.id===card?.dataset.turnId);
-      if(!turn)return;
-      const p=point(turn,turns.indexOf(turn));
+      const index=turnIndexById.get(card?.dataset.turnId);
+      if(index===undefined)return;
+      const turn=turns[index];
+      const p=point(turn,index);
       dragging={kind:'card',id:turn.id,element:card,x:p.x,y:p.y,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
     } else if (event.target===viewport||event.target===stage||event.target===edgeLayer) {
       dragging={kind:'pan',x:panX,y:panY,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
@@ -304,12 +312,13 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       onMove(dragging.id,p);
     }
     dragging=null;
+    rebuildIndex();scheduleVisible();
   };
   viewport.addEventListener('pointerup',end);
   viewport.addEventListener('pointercancel',end);
   function focus(id){
-    const idx=turns.findIndex(turn=>turn.id===id);
-    if(idx<0)return;
+    const idx=turnIndexById.get(id);
+    if(idx===undefined)return;
     focusedId=id;
     const p=point(turns[idx],idx),card=cards.get(id);
     scale=1;autoFit=false;
@@ -337,6 +346,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
           card._lastTurn=turn;
           turnById.set(change.turnId,turn);
         }
+        inspector.updateTurn(turnById.get(change.turnId));
         if(query)applySearch();
         return; // Constant-work streaming update: no layout scan, edge rebuild or DOM churn.
       }
@@ -350,14 +360,14 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         const p=positions[change.turnId];
         if(card && p){
           card.style.left=p.x+'px';card.style.top=p.y+'px';
-          queueEdges();
+          rebuildIndex();queueEdges();
         }
         return;
       }
       stablePositions=stabilizeLayout(turns,stablePositions,positions);
       turnById.clear();turnIndexById.clear();
       turns.forEach((turn,index)=>{turnById.set(turn.id,turn);turnIndexById.set(turn.id,index);});
-      syncVisibleCards();
+      rebuildIndex();syncVisibleCards();
       renderOutline();
       renderBranchNodes(state.branches,state.route,state.previews);
       updateMinimap();
