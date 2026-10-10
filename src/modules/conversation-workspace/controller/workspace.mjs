@@ -42,7 +42,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     cacheLatest();notify({ type:'snapshot' });
   };
   const scheduleRefresh=()=>{
-    if(!turns.length){refresh();return;}
+    if(!turns.length || history.status!=='loading'){refresh();return;}
     if(structuralTimer!==null)return;
     structuralTimer=setTimeout(()=>{structuralTimer=null;if(running)refresh();},170);
   };
