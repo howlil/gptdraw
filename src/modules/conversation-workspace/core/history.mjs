@@ -40,8 +40,11 @@ export function mergeAnchoredHistory(known,visible,previousUnresolved=[],loading
   const merge=page=>{
     if(!page.length)return true;
     if(!messages.length){messages=page.slice();return true;}
-    const ids=new Set(messages.map(x=>x.id));
-    if(!page.some(x=>ids.has(x.id)))return false;
+    // Recycled data-testid or unverified turn-key overlap is not ordering
+    // evidence. It can refer to an entirely different virtualized message.
+    const safe=new Set(messages.filter(x=>!x.identity||x.identity==='stable').map(x=>x.id));
+    const anchored=page.some(x=>(!x.identity||x.identity==='stable')&&safe.has(x.id));
+    if(!anchored)return false;
     messages=mergeVisibleMessages(messages,page,loadingEarlier);
     return true;
   };
