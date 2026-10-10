@@ -42,7 +42,9 @@ export function createResponseBlock(data) {
     const label=el('span');label.textContent=data.language||'Code';
     const copy=el('button','g-text-action');copy.type='button';copy.textContent='Copy';
     copy.addEventListener('click',async()=>{
-      try{await navigator.clipboard.writeText(data.text||'');copy.textContent='Copied';}
+      // Streaming updates code.textContent in place. Read the live DOM value,
+      // not the stale block data captured when this button was created.
+      try{await navigator.clipboard.writeText(code.textContent||'');copy.textContent='Copied';}
       catch{copy.textContent='Copy unavailable';}
     });
     bar.append(label,copy);
