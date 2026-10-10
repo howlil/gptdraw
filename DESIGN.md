@@ -80,7 +80,7 @@ Any adoption of upstream Beautiful UI source must preserve license, document dep
 - A current ChatGPT conversation opens as connected prompt+answer cards without another login or API key. `data-turn` on conversation wrappers must be checked before fallback role descendants; unsupported variants must be reported as undetected rather than inventing text.
 - Streaming updates update only the affected response node; no page-wide DOM scan for every token and no synthetic word-by-word animation. The full graph is not reconciled when a backfill scan finds no new text.
 - **Motion:** subtle ~140–150ms entrance, hover and focus transitions. No animated CSS transforms while dragging, zooming, or streaming. Respect `prefers-reduced-motion`.
-- **Large graphs:** when there are 80+ turns, mount only viewport-near cards with margin, preserving focus/composer and the searchable in-memory graph. Keep edges lightweight and avoid full-card remounts per token.
+- **Large graphs:** when there are 80+ turns, mount only viewport-near cards with margin. Camera-only pan/zoom must not recreate world-space SVG edges. Drag and actual ResizeObserver bounds invalidate only relevant geometry. Preserve focus/composer, searchable cached turns, and a bounded (60-result initial) outline. Never remount unrelated response blocks during streaming.
 - Close/reopen restores a live native ChatGPT session and saved card positions; no message capture to extension storage.
 - Unsupported UI states are omitted, not represented as working controls.
 - Keyboard Escape closes; source/compose buttons have real native actions; explicit Zoom/Fit controls support non-pointer navigation.

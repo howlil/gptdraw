@@ -33,7 +33,7 @@ Read actual source before asserting supported features. Do not claim that DOM-re
 - Unanchored virtualized-history windows must **not** be guessed into chronological order; positional/uncertain DOM IDs cannot prove overlap. Surface unresolved history in UI diagnostics.
 - The background MV3 service worker is the **sole mutator of branch relations** through an IndexedDB readwrite transaction. Never restore unsafe `chrome.storage.local` read-modify-write in production; storage pulses are notifications only. Keep native menu activation user-initiated and child confirmation explicit.
 - A historical Fork resolves the exact message via bounded native scrolling and checks the active route before committing pending metadata.
-- Update Focus Reading blocks in place during streaming. Do not reset active selection or scroll. Use a spatial grid index to cull 80+ cards; canvas diagnostics may expose timing **numbers only**, never chat contents.
+- Preserve unchanged typed DOM response block identities during streaming; invalidate on dirty text or link attributes, fall back to full parse on structure. Update Focus Reading in place without resetting active selection/scroll. Coalesce camera frames; **never redraw all SVG edges on camera-only updates**. Use keyed SVG paths with geometry invalidation and spatial grid culling. Cache search text and cap outline DOM results; background history yields to interaction and batches structural canvas commits. Diagnostics expose **numbers only**, never chat contents.
 - Before claiming production-ready, run `docs/CHROME_SMOKE_TEST.md` in signed-in Chrome. Fixture/unit CI is not a substitute.
 
 ## Routing

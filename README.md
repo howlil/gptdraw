@@ -67,7 +67,11 @@ The visual and reusable-component approach follows the approved Dialogue chat ca
 3. In the new ChatGPT child conversation, confirm **Link this branch** only when you know this chat was created from that source. Confirmation saves parent/child metadata (not conversation text), rejects duplicate parents/cycles, and displays parent/child navigation nodes.
 4. **Continue** on the latest card sends through the native ChatGPT composer. **Continue as branch** on an earlier card invokes native Fork first. Quote selections are *focus references*: paste a copied quote into the child to guide its next prompt; it does not automatically strip ChatGPT's original context.
 
-For 80+ loaded turns, a spatial grid index selects nearby cards (overscan); visible-only sequential edges keep pan/zoom work bounded. Canvas diagnostics include the most recent mount cost. Performance is covered by deterministic tests, not yet real-Chrome frame measurements.
+For 80+ loaded turns, a spatial grid index selects nearby cards (overscan). Pan/zoom coalesces camera updates into one animation frame; keyed SVG connectors are not recreated unless geometry or the visible set changes. Dragged-card connectors follow actual drag coordinates. The Minimap reuses SVG markers across structural updates.
+
+Assistant streaming tracks the changed native DOM nodes and reuses unchanged typed response blocks, with full message fallback for structural changes. The controller and Reading panel use block identity instead of repeated JSON serialization on token updates. During background history scanning, the browser yields for user pan/zoom/search or hidden tabs, and coalesces structural canvas commits without delaying manual Refresh.
+
+Search caches normalized text per stable turn content and limits the initial outline to 60 results with Show more. Diagnostics include only numeric DOM scan/patch timing, camera/frame/edge reconciliation costs, mounted card counts, and SVG node allocation counters. Performance tests prove invariants, **not measured Chrome FPS**.
 
 ## Branch workspace, minimap and reading tools
 

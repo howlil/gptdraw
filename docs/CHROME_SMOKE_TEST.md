@@ -37,3 +37,12 @@ changing the spatial grid or virtualized DOM boundaries.
 - Native Branch menu may be absent; do not claim Fork succeeded then.
 - Unloaded branches do not have copy of their chat text in gptdraw.
 - Graph metadata is local; quotes and full transcripts are not persisted.
+
+## Performance optimization regression checks
+
+- Record **before/after** Chrome Performance traces against the same representative chats, device, browser build and viewport. Unit/CI cannot prove a faster frame time.
+- Repeated camera-only pan/zoom with an unchanged visible card set must not increase **edgeDOMCreates/edgeDOMRemoves** after initial rendering. Verify connection geometry while dragging a card.
+- Stream a long response with code, links, lists and tables. **patchLastMs**, **patchMaxMs** and unchanged block visual stability should be inspected. Change a link target in the native DOM and check it updates safely.
+- During a long old-chat scan, pan/search and hide/restore the tab. History must yield, retain anchored order and eventually finish after tab becomes visible.
+- Search a 2,000-turn fixture; outline initially mounts a bounded result set. Minimap must remain accurate after changing layout.
+- Diagnostics may export numeric/status metrics only, not actual conversation text or native message IDs.

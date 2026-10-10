@@ -65,3 +65,7 @@ gptdraw enhances the **currently open ChatGPT website** with a graph-based conve
 ## Reliability acceptance gate
 
 Before introducing another user-visible feature, complete the Chrome signed-in smoke runbook under `docs/CHROME_SMOKE_TEST.md`. The implementation contains generation-safe lifecycle, route-bound layout saves, unanchored history detection, historical Fork source recovery, IndexedDB atomic branch ownership, transcript-free diagnostics, live Reading updates, and indexed spatial culling. These are **implemented in source with passing Node/CI tests**, not yet proof of stable behavior against a real account's ChatGPT DOM. Prioritize failures shown by diagnostics and performance traces over speculative components.
+
+## Performance user journey — October 2026
+
+**Now:** open ChatGPT → latest card renders immediately; pan/zoom only moves camera; streaming modifies just dirty response blocks and does not recreate unrelated cards. Older-history scanning yields to user activity and continues later. Search uses cached terms and initially shows up to 60 matching outline rows with Show more. The minimap retains marker identity when positions do not change. These are source-level implementation decisions, not verified live-site FPS improvements.
