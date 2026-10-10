@@ -211,12 +211,15 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       if(running)return;
       running=true;
       const token=++lifecycle;
-      await loadRoute(pathname());
+      // loadRoute resets route state synchronously, then reads storage async.
+      // DOM observation must not wait for MV3 service worker/IndexedDB wake-up.
+      const restoring=loadRoute(pathname());
       if(!running || token!==lifecycle)return;
       const next=observe(callbacks);
       if(!running || token!==lifecycle)return;
       observer=next;observer.start();
       unsubscribeBranches=branchStorage?.subscribe?.(reloadBranchState)||(()=>{});
+      await restoring;
     },
     stop() {
       if(!running)return;
