@@ -26,23 +26,23 @@ function patchColumn(state,turn) {
   if(selectionInside(state.response)){state.pending=turn;return;}
   state.pending=null;
   for(let i=0;i<next.length;i++){
-    const block=next[i],signature=JSON.stringify(block),old=state.blocks[i];
-    if(old?.signature===signature)continue;
+    const block=next[i],old=state.blocks[i];
+    if(old?.data===block)continue;
     if(old && old.kind===block.kind && block.kind==='paragraph' && !block.inline){
       old.element.textContent=block.text||'';
-      state.blocks[i]={element:old.element,kind:block.kind,signature};
+      state.blocks[i]={element:old.element,kind:block.kind,data:block};
       continue;
     }
     if(old && old.kind==='code' && block.kind==='code' &&
       old.language===block.language){
       const code=old.element.querySelector('code');
       if(code)code.textContent=block.text||'';
-      state.blocks[i]={...old,signature};continue;
+      state.blocks[i]={...old,data:block};continue;
     }
     const element=createResponseBlock(block);
     if(old)old.element.replaceWith(element);
     else state.response.append(element);
-    state.blocks[i]={element,kind:block.kind,language:block.language,signature};
+    state.blocks[i]={element,kind:block.kind,language:block.language,data:block};
   }
   while(state.blocks.length>next.length)state.blocks.pop().element.remove();
 }

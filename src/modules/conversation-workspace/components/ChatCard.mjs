@@ -145,7 +145,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     }finally{send.disabled=!composerInput.value.trim();}
   });
   card.append(head,body,footer,composer);
-  let blocks=[],lastAnswer='',lastSignature='';
+  let blocks=[],lastAnswer='',lastBlockRefs=[];
   card._setBookmark=enabled=>{
     bookmark.classList.toggle('g-is-bookmarked',!!enabled);
     bookmark.title=enabled?'Remove bookmark':'Bookmark card';
@@ -165,18 +165,29 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     // replace the card or reset user selection elsewhere in the graph.
     const nextBlocks=next.answerBlocks?.length?next.answerBlocks:
       next.answer?[{kind:'paragraph',text:next.answer}]:[];
-    const signature=next.answer+'|'+JSON.stringify(nextBlocks);
-    if(signature!==lastSignature) {
-      lastAnswer=next.answer;lastSignature=signature;
+    if(next.answer!==lastAnswer || nextBlocks.length!==lastBlockRefs.length ||
+        nextBlocks.some((block,i)=>block!==lastBlockRefs[i])){
+      lastAnswer=next.answer;
       for(let i=0;i<nextBlocks.length;i++){
-        const data=nextBlocks[i],prev=blocks[i],key=JSON.stringify(data);
-        if(!prev||prev.key!==key){
-          const element=createResponseBlock(data);
-          if(prev)prev.element.replaceWith(element);else answer.append(element);
-          blocks[i]={element,key};
+        const data=nextBlocks[i],prev=blocks[i];
+        if(prev?.data===data)continue;
+        if(prev?.data?.kind==='paragraph' && data.kind==='paragraph' &&
+            !prev.data.inline && !data.inline){
+          if(prev.element.textContent!==data.text)prev.element.textContent=data.text||'';
+          blocks[i]={element:prev.element,data};continue;
         }
+        if(prev?.data?.kind==='code' && data.kind==='code' &&
+            prev.data.language===data.language){
+          const code=prev.element.querySelector('code');
+          if(code)code.textContent=data.text||'';
+          blocks[i]={element:prev.element,data};continue;
+        }
+        const element=createResponseBlock(data);
+        if(prev)prev.element.replaceWith(element);else answer.append(element);
+        blocks[i]={element,data};
       }
       while(blocks.length>nextBlocks.length)blocks.pop().element.remove();
+      lastBlockRefs=nextBlocks.slice();
     }
     placeholder.textContent=next.pending?'Waiting for ChatGPT response…':'';
     placeholder.hidden=!next.pending;

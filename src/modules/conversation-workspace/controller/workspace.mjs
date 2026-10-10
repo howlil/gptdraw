@@ -100,8 +100,9 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const updated = original.userId === item.id
         ? { ...original, prompt:item.text }
         : { ...original, answer:item.text, answerBlocks:item.blocks || [], pending:!item.text.trim() };
-      if (original.prompt === updated.prompt && original.answer === updated.answer &&
-          JSON.stringify(original.answerBlocks||[])===JSON.stringify(updated.answerBlocks||[])) return;
+      const before=original.answerBlocks||[],after=updated.answerBlocks||[];
+      if (original.prompt===updated.prompt && original.answer===updated.answer &&
+          before.length===after.length && before.every((block,i)=>block===after[i]))return;
       turns[index] = updated;
       if(index===turns.length-1)cacheLatest();
       notify({ type:'patch', turnId:updated.id });
