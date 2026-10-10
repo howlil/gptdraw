@@ -86,3 +86,13 @@ test('format-only streaming mutation updates focused turn even if text matches',
  assert.equal(ctrl.snapshot().turns[0].answerBlocks[0].inline[0].href,'https://example.com');
  ctrl.stop();
 });
+
+test('recycled positional ID is not accepted as chronological history evidence',()=>{
+ const known=[{id:'user:conversation-turn-0',role:'user',text:'first prompt',identity:'ephemeral'}];
+ const reused=[{id:'user:conversation-turn-0',role:'user',text:'different prompt',identity:'ephemeral'},
+   {id:'assistant:conversation-turn-1',role:'assistant',text:'different answer',identity:'ephemeral'}];
+ const result=mergeAnchoredHistory(known,reused,[],true);
+ assert.equal(result.messages.length,1);
+ assert.equal(result.messages[0].text,'first prompt');
+ assert.equal(result.unresolved.length,1);
+});
