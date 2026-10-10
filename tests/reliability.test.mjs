@@ -12,18 +12,19 @@ const nextTick=()=>new Promise(resolve=>setTimeout(resolve,0));
 test('closing while asynchronous layout restoration is running never resurrects an observer',async()=>{
  let complete;
  const slow=new Promise(resolve=>{complete=resolve;});
- let started=0;
+ let started=0,stopped=0;
  const controller=createWorkspaceController({
   pathname:()=>'/c/old',
   layoutStorage:{read:()=>slow,write:async()=>{}},
-  observe:cb=>({start(){started++;cb.onSnapshot(messages);},stop(){}}),
+  observe:cb=>({start(){started++;cb.onSnapshot(messages);},stop(){stopped++;}}),
   onUpdate:()=>{}
  });
  const starting=controller.start();
  controller.stop();
  complete({});
  await starting;
- assert.equal(started,0);
+ assert.equal(started,1,'native DOM observation begins without waiting on metadata');
+ assert.equal(stopped,1,'closing immediately disconnects the observer');
 });
 test('drag then navigate captures original route even when write is asynchronous',async()=>{
  const writes=[];let callbacks;
