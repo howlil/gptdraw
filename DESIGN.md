@@ -29,6 +29,13 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Stable DOM node identity: never replace the entire card on every streaming token.
 - Content formatting: safely project *rendered* Markdown as typed headings, paragraphs, true list/table elements, code blocks with Copy and sanitized HTTP(S) links using DOM `textContent` / `innerText`. Do not inject copied ChatGPT `innerHTML`. Native embedded widgets, proprietary citations, hidden reasoning and attachments remain unsupported.
 
+## Reliability and honest-state feedback
+
+- The main UI remains usable during old-chat history scanning. If virtualized pages have no stable overlap, show **unlinked history pages** rather than presenting invented sequential ancestry.
+- Provide a dismissible, on-demand monochrome Compatibility Diagnostics panel. It contains numeric/status data only and a **Copy diagnostics** control, never transcript content.
+- Focus Reading updates streamed answer blocks in place; preserve the scroll position and defer active text selections. Large conversations use spatial-grid viewport culling, not a DOM card for every offscreen turn.
+- Keep the surrounding ChatGPT sidebar native; avoid adding a floating launcher or full-page modal.
+
 ## Conversation canvas
 
 - Nodes represent consecutive visible turn pairs in one ChatGPT conversation. The overlay is measured against the native `main` bounding rectangle and updates when the sidebar opens/closes. Do not position the workspace across the full viewport or cover ChatGPT navigation.

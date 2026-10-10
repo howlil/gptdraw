@@ -19,11 +19,11 @@
                  ├── core/history.mjs             # linear virtualized snapshot merge
                  ├── core/branch.mjs              # pending/confirmed lineage invariants
                  ├── controller/workspace.mjs     # per-overlay projection + metadata
-                 ├── adapters/metadata.mjs        # chrome.storage.local: positions only
+                 ├── adapters/metadata.mjs        # chrome.storage.local: positions/bookmark IDs
                  └── components/                  # native incremental canvas/cards
                         └── src/components/ui/   # generic controls/icons
 
-Build-time only: esbuild bundles content script; Tailwind CSS v4 compiles CSS. `dist/` is the loadable MV3 extension; `src/extension/background.js` only toggles the canvas toolbar action. No network provider, API key or backend.
+Build-time only: esbuild bundles content script; Tailwind CSS v4 compiles CSS. `dist/` is the loadable MV3 extension; `src/extension/background.mjs` only toggles the canvas toolbar action. No network provider, API key or backend.
 
 **Trust boundary:** page DOM is observable but untrusted; ChatGPT's hidden React state/model context is inaccessible in isolated-world code. Never intercept secrets, cookies, private network traffic or app globals. Never move React-managed DOM into the canvas.
 
@@ -47,13 +47,16 @@ gptdraw/
         ConversationWorkspace.mjs # visual composition
         core/graph.mjs            # deterministic turn pairing, route, position
         core/history.mjs          # linear merge of virtualized DOM pages
-        core/branch.mjs           # cycle/duplicate-safe pending+confirmed lineage
+        core/branch.mjs           # cycle/duplicate-safe lineage
+        core/lineage-transaction.mjs # pure atomic mutation reducer
+        core/spatial-index.mjs    # viewport cell query
+        core/viewport.mjs         # minimap projection
         adapters/
           chatgpt-dom.mjs         # DOM selector/mutation compatibility
           history.mjs             # two-way native scroll + progress/cancellation
           response-content.mjs    # safe typed answer blocks and links
           chatgpt-branch.mjs      # native message More → Branch action
-          branches.mjs            # local metadata only
+          branches.mjs            # service-worker RPC; legacy fixture adapter
           source-navigation.mjs   # native scroll source recovery
           native-composer.mjs     # user-initiated native editor/Send bridge
           metadata.mjs            # layout only, versioned chrome.storage keys
@@ -62,6 +65,8 @@ gptdraw/
           GraphCanvas.mjs         # viewport gestures and sequential SVG edges
           ChatCard.mjs            # native DOM card (stable element per turn)
           ResponseBlock.mjs       # safe list/table/code/link renderer
+          InspectionPanel.mjs     # streaming-aware read/compare panel
+          DiagnosticsPanel.mjs    # metadata-only compatibility diagnostics
           StartCard.mjs           # real compose/send for zero-turn workspaces
   scripts/build.mjs               # compile/bundle & copy MV3 manifest
   tests/                          # deterministic unit/fixture checks
@@ -128,3 +133,14 @@ Test-first on real invariants. Use `npm run test` and `npm run build`; CI valida
 **Slices 03–05 implemented in source with limits:** one-block selected quote digest/copy and native Continue-as-branch; typed safe code/table/list/link renderer; virtualized 80+ canvas, linear history/layout merges and old-source scroll recovery. Native citations, tools/attachments, automatic quote-context reduction, browser performance measurement and live ChatGPT compatibility remain unverified/unsupported.
 
 All slices extend the same ownership tree; do not rebuild the app horizontally or schedule a blanket structural refactor.
+
+
+## Reliability hardening (October 2026)
+
+- **Layout:** controller captures route + position snapshot at each move, coalesces rapid drags and flushes route-specific work before navigation/close. Async writes are serialized; stop invalidates the lifecycle token so a late `loadRoute` cannot resurrect the observer.
+- **History:** `mergeAnchoredHistory` allows structural ordering only with a verified stable overlap. Disjoint segments remain volatile and unresolved until anchored. Ephemeral and unverified IDs are not ordering evidence. Their omission is intentional, not loss of the underlying ChatGPT data.
+- **Fork:** `source-navigation.mjs` recovers virtualized assistant DOM; controller verifies route/token again after recovery and after native menu discovery. One outstanding branch intent globally; the IndexedDB transaction runs in the bundled `background.mjs` service worker with the pure invariant reducer `core/lineage-transaction.mjs`. Chrome Storage is used only for branch revision change notifications and for existing layout/bookmark IDs. A signed-in-site native Fork smoke test remains mandatory.
+- **Diagnostics:** `DiagnosticsPanel.mjs` reports counts, scan/patch totals, provisional identity quality, history phase and mounted cards plus measured viewport-update duration. The report **never** exports actual chat contents, message IDs, URLs or secrets.
+- **Reading:** `InspectionPanel.mjs` patches displayed typed blocks without rerendering the pane; preserve the user's scroll and postpone mutations while a text selection is active.
+- **Performance:** `core/spatial-index.mjs` builds a cell index after snapshot/layout changes; pan/zoom queries the grid, then mounts only nearby cards. Sequential edges are produced from mounted neighboring cards. Unit tests cover 2000 turns. Browser FPS is not claimed until measured.
+- **Browser QA:** see `docs/CHROME_SMOKE_TEST.md`. Real authenticated ChatGPT behavior is not automatically verified by Node fixtures.
