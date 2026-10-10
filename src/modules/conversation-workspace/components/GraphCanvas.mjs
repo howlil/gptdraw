@@ -537,6 +537,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     fit,focus,
     closeInspector:()=>{hideSelection();inspector.hide();},
     hideSelection,
+    selectionOpen:()=>!selectionToolbar.hidden,
     inspectorOpen:()=>inspector.visible,
     stats:()=>({mountedCards:cards.size,canvasTurns:turns.length,
       renderedEdges:edgePaths.size,branchNodes:branchNodes.size,

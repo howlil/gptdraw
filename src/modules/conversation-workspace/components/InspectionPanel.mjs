@@ -73,6 +73,7 @@ export function createInspectionPanel(onSelection=()=>{}){
   function hide(){
     if(overlay.hidden)return;
     overlay.hidden=true;content.replaceChildren();columns=[];
+    onSelection(null);
     document.removeEventListener('selectionchange',selectionChange);
     const element=restore;restore=null;element?.focus?.({preventScroll:true});
   }

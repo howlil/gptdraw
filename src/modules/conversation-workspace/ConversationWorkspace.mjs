@@ -46,6 +46,9 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   wrapper.append(footer);
   wrapper.addEventListener('keydown',event=>{
     if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey)return;
+    if(event.key==='Escape'&&canvas.selectionOpen()){
+      event.stopPropagation();event.preventDefault();canvas.hideSelection();return;
+    }
     if(event.key==='Escape'&&canvas.inspectorOpen()){
       event.stopPropagation();event.preventDefault();canvas.closeInspector();return;
     }
@@ -61,7 +64,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   return {
     element:wrapper,
     show(){wrapper.hidden=false;},
-    hide(){wrapper.hidden=true;},
+    hide(){canvas.hideSelection();wrapper.hidden=true;},
     render(state, change){
       const status=state.history?.status || 'idle';
       const labels={
