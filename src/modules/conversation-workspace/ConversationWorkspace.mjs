@@ -3,7 +3,7 @@ import { control, icon } from '../../components/ui/icons.mjs';
 import { createDiagnosticsPanel } from './components/DiagnosticsPanel.mjs';
 
 export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart, onSend,
-  onFork, onBookmark, onConfirmBranch, onDismissBranch, onOpenConversation, onDiagnostics, onActivity }) {
+  onFork, onAskQuote, onBookmark, onConfirmBranch, onDismissBranch, onOpenConversation, onDiagnostics, onActivity }) {
   const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
   const header=document.createElement('header'); header.className='g-topbar';
   const branding=document.createElement('div'); branding.className='g-brand';
@@ -38,7 +38,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   branchNotice.append(noticeText,confirm,dismiss,branchError);wrapper.append(branchNotice);
   confirm.addEventListener('click',async()=>{confirm.disabled=true;try{await onConfirmBranch();}catch(error){branchError.textContent=error.message;}finally{confirm.disabled=false;}});
   dismiss.addEventListener('click',async()=>{try{await onDismissBranch();}catch(error){branchError.textContent=error.message;}});
-  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onBookmark,onOpenConversation,onActivity});
+  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onAskQuote,onBookmark,onOpenConversation,onActivity});
   wrapper.append(canvas.element);
   wrapper.append(diagnostics.element);
   const footer=document.createElement('footer');footer.className='g-footer';

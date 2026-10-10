@@ -1,5 +1,5 @@
 import { createChatGPTObserver, findChatMain } from '../modules/conversation-workspace/adapters/chatgpt-dom.mjs';
-import { submitNativePrompt, findNativeComposer } from '../modules/conversation-workspace/adapters/native-composer.mjs';
+import { submitNativePrompt, prepareNativePrompt, findNativeComposer } from '../modules/conversation-workspace/adapters/native-composer.mjs';
 import { createLayoutStorage } from '../modules/conversation-workspace/adapters/metadata.mjs';
 import { revealNativeSource } from '../modules/conversation-workspace/adapters/source-navigation.mjs';
 import { createRpcBranchStorage } from '../modules/conversation-workspace/adapters/branches.mjs';
@@ -82,6 +82,25 @@ if (!document.getElementById(HOST_ID)) {
         requestAnimationFrame(()=>findNativeComposer(document)?.focus?.());
       }
       return result;
+    },
+    onAskQuote:async quote=>{
+      // A user-initiated edit, not an automatic model request. The native
+      // ChatGPT composer remains authoritative and existing drafts are safe.
+      const excerpt=String(quote||'').trim();
+      if(!excerpt || excerpt.length>10000)throw new Error('Select a shorter quote.');
+      const block=excerpt.split('\n').map(line=>'> '+line).join('\n');
+      await prepareNativePrompt(document,
+        'About this excerpt from the previous answer:\n\n'+block+'\n\nMy question:');
+      hide();
+      requestAnimationFrame(()=>{
+        const editor=findNativeComposer(document);
+        editor?.focus?.();
+        if(typeof editor?.setSelectionRange==='function'){
+          const end=editor.value?.length||0;
+          editor.setSelectionRange(end,end);
+        }
+      });
+      return {status:'prepared'};
     },
     onFork:(id,anchor)=>controller.fork(id,anchor),
     onBookmark:id=>controller.toggleBookmark(id),
