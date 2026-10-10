@@ -15,6 +15,51 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let pendingLayout=null,writeTail=Promise.resolve(),unresolved=[];
   let structuralTimer=null;
   const contentSignatures=new Map();
+  // A virtualized DOM may recycle conversation-turn-0..N on every viewport.
+  // Session IDs prevent collisions; exact window/content re-identification is
+  // volatile and never grants a durable ID for bookmarks or native branching.
+  let observedOrdinal=0;
+  let lastVisibleByNative=new Map();
+  const observedWindows=new Map();
+  const contentKey=row=>row.role+'\0'+row.text;
+  function normalizeVisible(items){
+    if(!items.length)return items;
+    const fingerprint=items.map(contentKey).join('\u0002');
+    const windowIds=observedWindows.get(fingerprint);
+    const knownByText=new Map(),counts=new Map(),visibleCounts=new Map();
+    for(const row of messages){
+      const key=contentKey(row);
+      counts.set(key,(counts.get(key)||0)+1);
+      knownByText.set(key,row);
+    }
+    for(const row of items){
+      const key=contentKey(row);visibleCounts.set(key,(visibleCounts.get(key)||0)+1);
+    }
+    const nextNative=new Map(),claimed=new Set();
+    const rows=items.map((row,index)=>{
+      if(row.identity!=='ephemeral'){
+        nextNative.set(row.id,{...row});return row;
+      }
+      let id=windowIds?.[index];
+      const recent=lastVisibleByNative.get(row.id);
+      if(!id && recent?.role===row.role && recent.text===row.text)
+        id=recent.id;
+      if(!id && row.text.length>=28 &&
+          counts.get(contentKey(row))===1 && visibleCounts.get(contentKey(row))===1)
+        id=knownByText.get(contentKey(row))?.id;
+      if(!id || claimed.has(id))id=row.role+':observed:'+ ++observedOrdinal;
+      claimed.add(id);
+      const normalized={...row,id,nativeId:row.id,identity:'ephemeral'};
+      nextNative.set(row.id,normalized);
+      return normalized;
+    });
+    lastVisibleByNative=nextNative;
+    if(!observedWindows.has(fingerprint)){
+      observedWindows.set(fingerprint,rows.map(row=>row.id));
+      if(observedWindows.size>400)observedWindows.delete(observedWindows.keys().next().value);
+    }
+    return rows;
+  }
   let observer = null;
   let unsubscribeBranches=()=>{};
   let messageIndex = new Map(), turnIndex = new Map();
@@ -49,6 +94,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   async function loadRoute(path) {
     if(structuralTimer!==null){clearTimeout(structuralTimer);structuralTimer=null;}
     contentSignatures.clear();
+    observedOrdinal=0;lastVisibleByNative.clear();observedWindows.clear();
     flushLayout();
     route = routeKey(path);
     const seq = ++generation;
@@ -83,8 +129,9 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     }catch{/* Keep current canvas usable if extension storage is unavailable. */}
   }
   const callbacks = {
-    onSnapshot(items) {
+    onSnapshot(items,observation={}) {
       if(!running)return {count:messages.length,firstId:messages[0]?.id??null};
+      items=normalizeVisible(items);
       // Compare only the currently scanned DOM window, not every old message
       // accumulated in RAM. Reuse prior records for unchanged windows.
       const previous=new Map(messages.map(row=>[row.id,row]));
@@ -96,7 +143,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
         return matches?old:row;
       });
       const merged=mergeAnchoredHistory(messages,normalized,unresolved,
-        history.status==='loading'&&history.phase==='up');
+        history.status==='loading'&&history.phase==='up',observation);
       unresolved=merged.unresolved;
       const changed=merged.messages.length!==messages.length ||
         merged.messages.some((row,i)=>row!==messages[i]);
@@ -111,6 +158,12 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     },
     onPatch(item) {
       if(!running)return;
+      if(item.identity==='ephemeral'){
+        const alias=lastVisibleByNative.get(item.id);
+        if(!alias)return;
+        item={...item,id:alias.id,nativeId:alias.nativeId};
+        lastVisibleByNative.set(alias.nativeId,item);
+      }
       if(structuralTimer!==null)refresh();
       contentSignatures.set(item.id,item.role+'\0'+item.text+'\0'+JSON.stringify(item.blocks||[]));
       const i = messageIndex.get(item.id);
