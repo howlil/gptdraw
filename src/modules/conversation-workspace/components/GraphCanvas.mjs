@@ -290,7 +290,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       const i=turnIndexById.get(id);
       if(!i)continue;
       const previous=turns[i-1],first=cards.get(previous.id);
-      if(!first)continue;
+      if(!first || turns[i].breakBefore)continue;
       const a=point(previous,i-1),b=point(turns[i],i);
       const x1=a.x+(measuredBounds.get(previous.id)?.width||366),y1=a.y+43;
       const x2=b.x,y2=b.y+43;

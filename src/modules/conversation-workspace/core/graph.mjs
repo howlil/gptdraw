@@ -8,7 +8,7 @@ export function pairMessages(messages) {
       current = {
         id: message.id, userId: message.id, assistantId: null,
         prompt: message.text, answer: '', answerBlocks:[], anchorId: message.id,
-        pending: true
+        pending: true,breakBefore:!!message.breakBefore
       };
       turns.push(current);
     } else if (message.role === 'assistant') {

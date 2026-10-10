@@ -75,7 +75,7 @@ export async function backfillHistory({
       scroller.scrollTop=Math.max(0,before-step);
       await wait(waitMs);
       if(!(await yieldForScan()) || abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
-      const current=await onScan();
+      const current=await onScan({direction:'up',moved:scroller.scrollTop<before-1,scrollTop:scroller.scrollTop});
       count=Math.max(count,current?.count||0);
       const head=current?.firstId||null,height=scroller.scrollHeight;
       const atTop=scroller.scrollTop<=2;
@@ -92,6 +92,7 @@ export async function backfillHistory({
       // Virtualized pages can unmount/reuse earlier rows; scan each viewport
       // and accumulate IDs in the in-memory controller.
       stable=0;
+      onStatus({status:'loading',phase:'down',steps,count});
       for(;steps<maxSteps;steps++){
         if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
         const max=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
@@ -99,7 +100,7 @@ export async function backfillHistory({
         scroller.scrollTop=Math.min(max,before+Math.max(220,Math.min(scroller.clientHeight*.82,900)));
         await wait(waitMs);
         if(!(await yieldForScan()) || abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
-        const info=await onScan();
+        const info=await onScan({direction:'down',moved:scroller.scrollTop>before+1,scrollTop:scroller.scrollTop});
         count=Math.max(count,info?.count||0);
         const end=scroller.scrollTop>=Math.max(0,scroller.scrollHeight-scroller.clientHeight-2);
         stable=end?stable+1:0;

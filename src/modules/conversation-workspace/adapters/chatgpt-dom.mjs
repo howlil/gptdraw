@@ -102,7 +102,7 @@ export function collectMessages(root,options={}) {
       if (!user) continue;
       grouped.push({
         id:'user:turn-key:'+key,role:'user',
-        text:(user.textContent||'').trim(),element:user,source:user
+        text:(user.textContent||'').trim(),identity:'candidate',element:user,source:user
       });
       const marker = group.querySelector?.('[data-conversation-role="assistant"],[data-chatgpt-agent-turn-start]');
       if (marker) {
@@ -115,7 +115,7 @@ export function collectMessages(root,options={}) {
         const answer=containerAnswer.text?containerAnswer:extractAssistantContent(source,options);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
-          text:answer.text,blocks:answer.blocks,element:source,source:answer.source
+          text:answer.text,blocks:answer.blocks,identity:'candidate',element:source,source:answer.source
         });
       }
     }
@@ -146,16 +146,16 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       yieldForScan:()=>yieldForHistory(document,controller.signal,
         {isInteracting:()=>Date.now()<userActivityUntil}),
       onStatus:status => {if(!controller.signal.aborted)onHistory(status);},
-      onScan:() => {
+      onScan:observation => {
         if(controller.signal.aborted || activeRoot!==root)return {count:0};
-        const cumulative=snapshot();
+        const cumulative=snapshot(observation);
         return cumulative || {count:nodes.size,firstId:nodes.keys().next().value ?? null};
       }
     }).catch(error => {
       if (!controller.signal.aborted)onHistory({status:'limited',message:error?.message || 'History load failed'});
     }).finally(() => {if(backfillAbort === controller)backfillAbort = null;});
   }
-  const snapshot = () => {
+  const snapshot = (observation={}) => {
     const started=performance.now();
     domScans++;
     blockCache=new WeakMap();
@@ -168,7 +168,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       const roleEl = row.element.querySelector?.(ROLE_SELECTOR);
       if (roleEl) targetIds.set(roleEl,row.id);
     }
-    const cumulative=onSnapshot(rows);
+    const cumulative=onSnapshot(rows,observation);
     scanLastMs=Math.round((performance.now()-started)*100)/100;
     scanMaxMs=Math.max(scanMaxMs,scanLastMs);
     if (!historyStarted) queueMicrotask(startBackfill);
