@@ -40,7 +40,8 @@ export async function prepareNativePrompt(doc, prompt) {
   return {status:'prepared'};
 }
 export async function submitNativePrompt(doc,prompt,nextFrame=callback=>requestAnimationFrame(callback)) {
-  const prepared=await prepareNativePrompt(doc,prompt);
+  await prepareNativePrompt(doc,prompt);
+  const editor=findNativeComposer(doc);
   // Let the site's actual composer react to its input event before clicking.
   await new Promise(resolve => nextFrame(resolve));
   const parent=editor.closest?.('form') || doc;
