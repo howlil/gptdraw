@@ -27,13 +27,18 @@ export function createStartCard(onStart) {
   send.append(icon('navigate',15));send.disabled=true;
   form.append(input,send);card.append(head,body,form);
 
-  function setRoute(route) {
+  function setRoute(route,historyStatus='idle') {
     const existing=route.startsWith('conversation:');
     card.classList.toggle('g-start-loading',existing);
     origin.textContent=existing?'Conversation':'New conversation';
-    title.textContent=existing?'Loading conversation…':'Start a conversation';
+    const unavailable=existing&&['unavailable','limited'].includes(historyStatus);
+    title.textContent=existing
+      ? unavailable?'Conversation not detected yet':'Loading conversation…'
+      : 'Start a conversation';
     description.textContent=existing
-      ? 'Waiting for ChatGPT to render the conversation. Available history will appear as cards.'
+      ? unavailable
+        ? 'ChatGPT has not exposed compatible message turns. Try Sync or return to ChatGPT.'
+        : 'Waiting for ChatGPT to render the conversation. Available history will appear as cards.'
       : 'Ask ChatGPT. Your messages will appear as connected cards.';
     form.hidden=existing;
     status.textContent='';

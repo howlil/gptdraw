@@ -526,7 +526,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       renderBranchNodes(state.branches,state.route,state.previews);
       updateMinimap();
       startCard.element.hidden = turns.length !== 0;
-      if(!turns.length)startCard.setRoute(state.route);
+      if(!turns.length)startCard.setRoute(state.route,state.history?.status);
       queueEdges();
       if(initialFocusPending && (turns.length>0 || state.history?.status==='unavailable') && viewport.clientWidth){
         initialFocusPending=false;

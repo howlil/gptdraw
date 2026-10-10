@@ -90,7 +90,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
       branchError.textContent=state.branchError || '';
       if(change?.type==='history')return;
       if(change?.type!=='patch' && change?.type!=='position')
-        count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns');
+        count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns')+' loaded';
       canvas.reconcile(state,change);
     }
   };
