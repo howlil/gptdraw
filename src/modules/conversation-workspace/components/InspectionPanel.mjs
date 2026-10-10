@@ -1,6 +1,6 @@
 import {createResponseBlock} from './ResponseBlock.mjs';
 import {control} from '../../../components/ui/icons.mjs';
-import {readAnswerSelection} from './selection.mjs';
+import {readAnswerSelection,selectionForAnswer} from './selection.mjs';
 
 // Read-only live lens. Preserve column identity and scroll during streaming.
 function column(turn,label,onSelection){
@@ -11,8 +11,7 @@ function column(turn,label,onSelection){
   element.append(heading,prompt,response);
   const state={element,prompt,response,blocks:[],id:turn.id};
   const announce=()=>{
-    const rootSelection=response.getRootNode()?.getSelection?.();
-    const selection=rootSelection?.rangeCount?rootSelection:document.getSelection?.();
+    const selection=selectionForAnswer(response);
     const quote=readAnswerSelection(response,selection);
     onSelection?.(quote?{...quote,turnId:turn.id}:null);
   };

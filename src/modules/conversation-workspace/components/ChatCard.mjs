@@ -1,5 +1,5 @@
 import { control,icon } from '../../../components/ui/icons.mjs';
-import { readAnswerSelection } from './selection.mjs';
+import {readAnswerSelection,selectionForAnswer} from './selection.mjs';
 
 import { createResponseBlock } from './ResponseBlock.mjs';
 
@@ -48,8 +48,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   const forkStatus=document.createElement('span');forkStatus.className='g-fork-status';
   forkStatus.setAttribute('role','status');
   const announceSelection=()=>{
-    const rootSelection=card.getRootNode()?.getSelection?.();
-    const selection=rootSelection?.rangeCount?rootSelection:document.getSelection?.();
+    const selection=selectionForAnswer(answer);
     const quote=readAnswerSelection(answer,selection);
     onSelection?.(quote?{...quote,turnId:turn.id}:null);
   };
