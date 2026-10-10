@@ -1,4 +1,4 @@
-import { backfillHistory } from './history.mjs';
+import { backfillHistory, yieldForHistory } from './history.mjs';
 import { extractAssistantContent } from './response-content.mjs';
 
 // Read only rendered ChatGPT message DOM. Never reach into React state,
@@ -133,7 +133,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   let nodes = new Map(), targetIds = new WeakMap(), pending = new Map(), rescan = true;
   let blockCache=new WeakMap();
   let backfillAbort = null, historyStarted = false;
-  let domScans=0,domPatches=0;
+  let domScans=0,domPatches=0,userActivityUntil=0;
   const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
   function startBackfill() {
     if (!mounted || historyStarted || backfillAbort || !onHistory ||
@@ -142,6 +142,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     const activeRoot = root;
     const controller = new AbortController();backfillAbort = controller;
     backfillHistory({document,root:activeRoot,signal:controller.signal,
+      yieldForScan:()=>yieldForHistory(document,controller.signal,
+        {isInteracting:()=>Date.now()<userActivityUntil}),
       onStatus:status => {if(!controller.signal.aborted)onHistory(status);},
       onScan:() => {
         if(controller.signal.aborted || activeRoot!==root)return {count:0};
@@ -259,6 +261,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     refresh() { rescan = true; historyStarted=false; cancelBackfill(); connect(); },
     loadEarlier() { historyStarted=false;cancelBackfill();startBackfill(); },
     pauseHistory() {cancelBackfill();historyStarted=true;onHistory?.({status:'paused'});},
+    markInteraction(){userActivityUntil=Date.now()+850;},
     getElement(id) { return nodes.get(id)?.element || null; },
     getDiagnostics(){
       return {domScans,domPatches,rootPresent:!!root,
