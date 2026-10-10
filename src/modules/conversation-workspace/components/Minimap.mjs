@@ -12,7 +12,8 @@ export function createMinimap({onNavigate}) {
   const viewportBox=document.createElementNS('http://www.w3.org/2000/svg','rect');
   viewportBox.setAttribute('class','g-minimap-visible');
   svg.append(markers,viewportBox);container.append(svg);
-  let points=[],projection=minimapProjection([]),camera=null;
+  let points=[],projection=minimapProjection([]),camera=null,signature='';
+  const markerPool=[];
   const setCamera=next=>{
     camera=next;
     const rect=cameraRect(next,projection);
@@ -22,19 +23,27 @@ export function createMinimap({onNavigate}) {
     viewportBox.setAttribute('height',String(rect.height));
   };
   const setPoints=next=>{
-    points=next;
-    projection=minimapProjection(points);
-    markers.replaceChildren();
+    // Structural/layout changes only. Identical snapshots preserve SVG markers.
+    const nextSignature=next.map(p=>[p.x,p.y,p.w,p.h,p.branch?1:0].join(':')).join('|');
+    if(nextSignature===signature)return;
+    signature=nextSignature;points=next;projection=minimapProjection(points);
     const stride=Math.max(1,Math.ceil(points.length/320));
+    let used=0;
     for(let i=0;i<points.length;i+=stride){
       const p=points[i],q=projection.project(p);
-      const box=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      let box=markerPool[used];
+      if(!box){
+        box=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        markerPool.push(box);markers.append(box);
+      }
       box.setAttribute('x',String(q.x));box.setAttribute('y',String(q.y));
       box.setAttribute('width',String(Math.max(2,Math.min(12,(p.w||366)*projection.scale))));
       box.setAttribute('height',String(Math.max(2,Math.min(7,(p.h||190)*projection.scale))));
       box.setAttribute('class',p.branch?'g-minimap-branch':'g-minimap-turn');
-      markers.append(box);
+      box.hidden=false;used++;
     }
+    for(let i=used;i<markerPool.length;i++)markerPool[i].remove();
+    markerPool.length=used;
     if(camera)setCamera(camera);
   };
   svg.addEventListener('pointerdown',event=>{
