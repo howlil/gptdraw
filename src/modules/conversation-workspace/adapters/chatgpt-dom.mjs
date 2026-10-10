@@ -88,7 +88,7 @@ export function collectMessages(root) {
     const extracted=role==='assistant'?assistantFromTurn(node):null;
     const source=extracted?.source || readSource(node,role);
     result.push({id,role,text:extracted?.text ?? (source.textContent || '').trim(),
-      blocks:extracted?.blocks || [],identity:/:(?:conversation-turn-\\d+|visible:)/.test(id)?'ephemeral':id.includes('turn-key:')?'candidate':'stable',element:node,source});
+      blocks:extracted?.blocks || [],identity:/:(?:conversation-turn-\d+|visible:)/.test(id)?'ephemeral':id.includes('turn-key:')?'candidate':'stable',element:node,source});
   }
   if (!result.some(row => row.role === 'user')) {
     // Some renderer variants put both roles under a stable user turn key,
