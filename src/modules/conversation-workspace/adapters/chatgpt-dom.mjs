@@ -128,7 +128,7 @@ export function collectMessages(root,options={}) {
 // actual DOM nodes to turn IDs to avoid scanning every node for each token.
 export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, onHistory,
   schedule = callback => requestAnimationFrame(callback) }) {
-  let root = null, observer = null, bodyObserver = null, mounted = false, queued = false;
+  let root = null, observer = null, bodyObserver = null, mounted = false, queued = false, connectQueued=false;
   let pathname = document.defaultView?.location.pathname || '/';
   let nodes = new Map(), targetIds = new WeakMap(), pending = new Map(), rescan = true;
   let blockCache=new WeakMap();
@@ -252,19 +252,45 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       attributes:true,attributeFilter:['href']});
   }
   function connect() {
-    if (!mounted) return;
-    const next = findChatMain(document);
-    if (next !== root) { cancelBackfill();historyStarted=false;attach(next); rescan = true; }
+    if(!mounted)return;
+    const currentPath=document.defaultView?.location.pathname || '/';
+    if(currentPath!==pathname){
+      cancelBackfill();historyStarted=false;
+      pathname=currentPath;onRoute(pathname);rescan=true;
+    }
+    const next=findChatMain(document);
+    if(next!==root){cancelBackfill();historyStarted=false;attach(next);rescan=true;}
     queue();
   }
-  const nav = () => { rescan = true; connect(); };
+  // ChatGPT SPA transitions can replace a nested main, without popstate or
+  // a direct BODY child insertion. Observe nested shell changes, but avoid
+  // reacting to routine streamed content inside our separately watched root.
+  const scheduleConnect=()=>{
+    if(!mounted||connectQueued)return;
+    connectQueued=true;
+    queueMicrotask(()=>{connectQueued=false;connect();});
+  };
+  const onBodyMutations=mutations=>{
+    if(!mounted)return;
+    if((document.defaultView?.location.pathname||'/')!==pathname ||
+       !root || root.isConnected===false){scheduleConnect();return;}
+    for(const mutation of mutations){
+      if(root.contains?.(mutation.target))continue;
+      if([...mutation.addedNodes,...mutation.removedNodes].some(node=>
+          node.nodeType===1 && (node.matches?.('main,[role="main"]') ||
+            node.querySelector?.('main,[role="main"]')))){
+        scheduleConnect();return;
+      }
+    }
+  };
+  const nav = () => { rescan = true; scheduleConnect(); };
   return {
     start() {
       if (mounted) return;
       mounted = true;rescan = true;historyStarted=false;connect();
       document.defaultView?.addEventListener('popstate',nav);
-      bodyObserver = new MutationObserver(connect);
-      bodyObserver.observe(document.body,{childList:true});
+      bodyObserver = new MutationObserver(onBodyMutations);
+      if(document.body)bodyObserver.observe(document.body,{childList:true,subtree:true});
     },
     refresh() { rescan = true; historyStarted=false; cancelBackfill(); connect(); },
     loadEarlier() { historyStarted=false;cancelBackfill();startBackfill(); },
@@ -280,7 +306,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     stop() {
       mounted = false;cancelBackfill();historyStarted=false;observer?.disconnect();bodyObserver?.disconnect();
       document.defaultView?.removeEventListener('popstate',nav);
-      root = null;observer = null;bodyObserver = null;queued = false;
+      root = null;observer = null;bodyObserver = null;queued = false;connectQueued=false;
       nodes.clear();pending.clear();targetIds = new WeakMap();blockCache=new WeakMap();rescan = true;
     }
   };
