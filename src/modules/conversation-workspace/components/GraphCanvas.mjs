@@ -53,9 +53,9 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   let outlineLimit=60;
   const searchable=turn=>{
     const known=searchCache.get(turn.id);
-    if(known?.turn===turn)return known.text;
+    if(known?.prompt===turn.prompt && known?.answer===turn.answer)return known.text;
     const value=((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
-    searchCache.set(turn.id,{turn,text:value});
+    searchCache.set(turn.id,{prompt:turn.prompt,answer:turn.answer,text:value});
     return value;
   };
   const turnById=new Map(),turnIndexById=new Map();
@@ -120,6 +120,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const branchNodes=new Map();
   let branchPositions=new Map(),branchEdges=[],branchCurrent=null,visibleQueued=false;
   let spatialIndex=buildSpatialIndex([]),lastViewportUpdateMs=0,maxViewportUpdateMs=0;
+  let lastCameraFrameMs=0,maxCameraFrameMs=0,lastEdgeUpdateMs=0,maxEdgeUpdateMs=0;
+  let edgeDOMCreates=0,edgeDOMRemoves=0;
   const measuredBounds=new Map();
   const edgePaths=new Map();
   const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(entries=>{
@@ -145,11 +147,14 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     if(cameraQueued)return;
     cameraQueued=true;
     requestAnimationFrame(()=>{
+      const started=performance.now();
       cameraQueued=false;
       stage.style.transform='translate('+panX+'px,'+panY+'px) scale('+scale+')';
       zoomLabel.textContent=Math.round(scale*100)+'%';
       minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
       scheduleVisible();
+      lastCameraFrameMs=Math.round((performance.now()-started)*100)/100;
+      maxCameraFrameMs=Math.max(maxCameraFrameMs,lastCameraFrameMs);
     });
   };
   const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
@@ -207,6 +212,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     if(!visibleQueued){visibleQueued=true;requestAnimationFrame(syncVisibleCards);}
   }
   function drawEdges(){
+    const started=performance.now();
     edgesQueued=false;
     const geometry=new Map();
     for(const [id,card] of cards){
@@ -235,7 +241,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     }
     for(const [id,old] of edgePaths) {
       if(geometry.has(id))continue;
-      old.element.remove();edgePaths.delete(id);
+      old.element.remove();edgePaths.delete(id);edgeDOMRemoves++;
     }
     for(const [id,entry] of geometry){
       let existing=edgePaths.get(id);
@@ -245,7 +251,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         element.setAttribute('stroke',entry.branch?'var(--g-text)':'var(--g-edge)');
         element.setAttribute('stroke-width',entry.branch?'1.5':'1.7');
         if(entry.branch)element.setAttribute('stroke-dasharray','4 5');
-        edgeLayer.append(element);
+        edgeLayer.append(element);edgeDOMCreates++;
         existing={element,d:null};edgePaths.set(id,existing);
       }
       if(existing.d!==entry.d){
@@ -253,6 +259,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         existing.element.setAttribute('d',entry.d);
       }
     }
+    lastEdgeUpdateMs=Math.round((performance.now()-started)*100)/100;
+    maxEdgeUpdateMs=Math.max(maxEdgeUpdateMs,lastEdgeUpdateMs);
   }
   function renderBranchNodes(records,route,previews={}) {
     const tree=buildBranchWorkspace(records,route);
@@ -458,7 +466,9 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     inspectorOpen:()=>inspector.visible,
     stats:()=>({mountedCards:cards.size,canvasTurns:turns.length,
       renderedEdges:edgePaths.size,branchNodes:branchNodes.size,
-      lastViewportUpdateMs,maxViewportUpdateMs,spatialIndexEntries:spatialIndex.count}),
+      lastViewportUpdateMs,maxViewportUpdateMs,spatialIndexEntries:spatialIndex.count,
+      lastCameraFrameMs,maxCameraFrameMs,lastEdgeUpdateMs,maxEdgeUpdateMs,
+      edgeDOMCreates,edgeDOMRemoves}),
     nextTurn(step=1){
       if(!turns.length)return;
       const index=turnIndexById.get(focusedId);
