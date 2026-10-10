@@ -350,3 +350,29 @@ ol.g-block-list {list-style:decimal;}
 .g-diagnostics-rows dt{color:var(--g-muted);overflow-wrap:anywhere;}
 .g-diagnostics-rows dd{margin:0;font-variant-numeric:tabular-nums;}
 .g-diagnostics-actions{display:flex;align-items:center;gap:9px;font-size:11px;}
+
+/* Contextual quote actions: visible only during selection, inside gptdraw
+   viewport rather than an always-on floating launcher over ChatGPT. */
+.g-selection-toolbar {
+  position:absolute;z-index:11;display:flex;align-items:center;justify-content:center;
+  gap:3px;min-width:154px;max-width:min(300px,calc(100% - 20px));
+  padding:5px;border:1px solid var(--g-border);border-radius:11px;
+  color:var(--g-text);background:var(--g-surface);
+  box-shadow:0 9px 28px rgba(0,0,0,.14);pointer-events:auto;
+}
+.g-selection-toolbar button {
+  flex:none;border:0;background:transparent;color:var(--g-text);
+  padding:7px 10px;border-radius:7px;cursor:pointer;
+  font:500 12px/17px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui;
+}
+.g-selection-toolbar button:hover,.g-selection-toolbar button:focus-visible{
+  background:var(--g-panel);outline:none;
+}
+.g-selection-toolbar button:disabled{opacity:.45;cursor:wait;}
+.g-selection-status{
+  position:absolute;top:calc(100% + 5px);left:0;right:0;
+  padding:6px 8px;border:1px solid var(--g-border);
+  border-radius:8px;background:var(--g-surface);color:var(--g-muted);
+  box-shadow:0 3px 12px rgba(0,0,0,.07);font-size:11px;line-height:16px;
+  overflow-wrap:anywhere;max-height:100px;overflow:auto;
+}
