@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findNativeComposer, submitNativePrompt } from '../src/modules/conversation-workspace/adapters/native-composer.mjs';
+import { findNativeComposer, prepareNativePrompt, submitNativePrompt } from '../src/modules/conversation-workspace/adapters/native-composer.mjs';
 
 function fixture({ previous='', disabled=false, hasButton=true }={}) {
   const events=[];
@@ -49,4 +49,20 @@ test('bridge reports missing ChatGPT editor instead of silently sending',async()
   const doc={querySelector:()=>null};
   assert.equal(findNativeComposer(doc),null);
   await assert.rejects(submitNativePrompt(doc,'Hello',frame),/unavailable/);
+});
+
+test('Ask GPT prepares selected excerpt in the current native composer without sending',async()=>{
+  const f=fixture();
+  const draft='About this excerpt:\n\n> Exact selected passage\n\nMy question:';
+  const result=await prepareNativePrompt(f.doc,draft);
+  assert.deepEqual(result,{status:'prepared'});
+  assert.equal(f.editor.value,draft);
+  assert.equal(f.clicks,0);
+  assert.deepEqual(f.events,['focus','input']);
+});
+test('Ask GPT refuses to replace an existing native ChatGPT draft',async()=>{
+  const f=fixture({previous:'Unsent user writing'});
+  await assert.rejects(prepareNativePrompt(f.doc,'> Selected passage'),/already has an unsent draft/);
+  assert.equal(f.editor.value,'Unsent user writing');
+  assert.equal(f.clicks,0);
 });

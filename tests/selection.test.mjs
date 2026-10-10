@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readAnswerSelection} from '../src/modules/conversation-workspace/components/selection.mjs';
+import {readAnswerSelection,selectionForAnswer} from '../src/modules/conversation-workspace/components/selection.mjs';
 
 function fixture({multi=false,outside=false,collapsed=false}={}){
   const first={nodeType:1,closest:()=>first};
@@ -42,4 +42,28 @@ test('selections outside answer, collapsed and missing ranges do not open toolba
  }
  const {answer}=fixture();
  assert.equal(readAnswerSelection(answer,{rangeCount:0}),null);
+});
+
+test('ShadowRoot selection is preferred to document selection',()=>{
+ const selected={rangeCount:1,isCollapsed:false,getRangeAt:()=>({})};
+ const answer={getRootNode:()=>({getSelection:()=>selected})};
+ assert.equal(selectionForAnswer(answer),selected);
+});
+test('composed selection range resolves endpoints inside closed shadow root',()=>{
+ const shadow={host:{}};
+ const start={nodeType:3},end={nodeType:3};
+ const range={startContainer:null,endContainer:null,
+   setStart(node,offset){this.startContainer=node;this.startOffset=offset;},
+   setEnd(node,offset){this.endContainer=node;this.endOffset=offset;},
+   collapsed:false};
+ const selection={getComposedRanges:options=>{
+   assert.equal(options.shadowRoots[0],shadow);
+   return [{startContainer:start,startOffset:2,endContainer:end,endOffset:5}];
+ }};
+ const doc={getSelection:()=>selection,createRange:()=>range};
+ const answer={getRootNode:()=>shadow,ownerDocument:doc};
+ const resolved=selectionForAnswer(answer);
+ assert.equal(resolved.rangeCount,1);
+ assert.equal(resolved.getRangeAt(0).startContainer,start);
+ assert.equal(resolved.getRangeAt(0).endOffset,5);
 });
