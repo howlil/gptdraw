@@ -1,4 +1,5 @@
 import { createChatCard } from './ChatCard.mjs';
+import { quoteAnchor } from '../core/branch.mjs';
 import { createStartCard } from './StartCard.mjs';
 import { createMinimap } from './Minimap.mjs';
 import { createInspectionPanel } from './InspectionPanel.mjs';
@@ -8,7 +9,7 @@ import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
 import { buildSpatialIndex } from '../core/spatial-index.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation, onActivity=()=>{} }) {
+export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation, onAskQuote, onActivity=()=>{} }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -35,7 +36,28 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     autoFit=false;renderTransform();
   }});
   viewport.append(minimap.element);
-  const inspector=createInspectionPanel();viewport.append(inspector.element);
+  const inspector=createInspectionPanel(quote=>handleSelection(quote));
+  viewport.append(inspector.element);
+  // Single contextual action surface; never a permanent page launcher.
+  const selectionToolbar=document.createElement('div');
+  selectionToolbar.className='g-selection-toolbar';selectionToolbar.hidden=true;
+  selectionToolbar.setAttribute('role','toolbar');
+  selectionToolbar.setAttribute('aria-label','Actions for selected answer text');
+  const askSelection=document.createElement('button');
+  askSelection.type='button';askSelection.textContent='Ask GPT';
+  askSelection.title='Prepare this excerpt in the native ChatGPT composer; nothing is sent';
+  const forkSelection=document.createElement('button');
+  forkSelection.type='button';forkSelection.textContent='Fork';
+  forkSelection.title='Branch from this answer using the native ChatGPT action';
+  const selectionStatus=document.createElement('span');
+  selectionStatus.className='g-selection-status';
+  selectionStatus.setAttribute('role','status');selectionStatus.hidden=true;
+  selectionToolbar.append(askSelection,forkSelection,selectionStatus);
+  selectionToolbar.addEventListener('pointerdown',event=>{
+    // Keep the source range intact when tapping its action menu.
+    event.stopPropagation();event.preventDefault();
+  });
+  viewport.append(selectionToolbar);
   const outline=document.createElement('aside');outline.className='g-outline';outline.hidden=true;
   const outlineHead=document.createElement('div');outlineHead.className='g-outline-head';
   const outlineTitle=document.createElement('strong');outlineTitle.textContent='Conversation outline';
@@ -49,6 +71,47 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   moreOutline.addEventListener('click',()=>{outlineLimit+=60;renderOutline();});
   outline.append(outlineHead,outlineItems,moreOutline);viewport.append(outline);
   let query='',outlineOpen=false,bookmarks=[],selectedCompare=[],focusedId=null;
+  let activeSelection=null;
+  function hideSelection(){
+    activeSelection=null;selectionToolbar.hidden=true;selectionStatus.hidden=true;
+    selectionStatus.textContent='';
+  }
+  function handleSelection(quote){
+    if(!quote || !turnById.has(quote.turnId)){hideSelection();return;}
+    const bounds=viewport.getBoundingClientRect(),rect=quote.rect;
+    // Only show for a visible range within the canvas/Reading panel.
+    if(rect.bottom<bounds.top||rect.top>bounds.bottom){hideSelection();return;}
+    activeSelection=quote;
+    const toolbarWidth=154;
+    const x=Math.min(Math.max(10,(rect.left+rect.right)/2-bounds.left-toolbarWidth/2),
+      Math.max(10,bounds.width-toolbarWidth-10));
+    const above=rect.top-bounds.top-48;
+    const y=above>=10?above:Math.min(bounds.height-48,rect.bottom-bounds.top+8);
+    selectionToolbar.style.left=x+'px';selectionToolbar.style.top=Math.max(8,y)+'px';
+    selectionToolbar.hidden=false;selectionStatus.hidden=true;
+  }
+  async function performSelection(action){
+    const quote=activeSelection;if(!quote)return;
+    askSelection.disabled=true;forkSelection.disabled=true;
+    selectionStatus.hidden=false;
+    selectionStatus.textContent=action==='ask'?'Preparing ChatGPT draft…':'Opening native Branch…';
+    try{
+      if(action==='ask'){
+        await onAskQuote(quote.text,quote.turnId);
+      }else{
+        const anchor=await quoteAnchor(quote);
+        // This is an explicit user gesture. Copy is best-effort, never stored.
+        try{await navigator.clipboard.writeText(quote.text);}catch{}
+        await onFork(quote.turnId,anchor);
+      }
+      hideSelection();
+    }catch(error){
+      selectionStatus.hidden=false;
+      selectionStatus.textContent=error?.message||'Action unavailable.';
+    }finally{askSelection.disabled=false;forkSelection.disabled=false;}
+  }
+  askSelection.addEventListener('click',()=>performSelection('ask'));
+  forkSelection.addEventListener('click',()=>performSelection('fork'));
   const searchCache=new Map();
   let outlineLimit=60;
   const searchable=turn=>{
@@ -195,6 +258,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       if(!card){
         card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,
           onRead:readTurn,onCompare:selectForCompare,onBookmark,
+          onSelection:handleSelection,
           isLatest:index===turns.length-1});
         card.tabIndex=-1;cards.set(id,card);stage.append(card);mountedChanged=true;
         cardResize?.observe(card);
@@ -364,6 +428,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     zoom(scale+(event.deltaY<0?.08:-.08),event.clientX-rect.left,event.clientY-rect.top);
   },{passive:false});
   viewport.addEventListener('pointerdown',event=>{
+    if(!selectionToolbar.contains(event.target) &&
+       !event.target.closest?.('.g-answer,.g-inspect-response'))hideSelection();
     if (event.button!==0 || event.target.closest?.('button,input,textarea,a')) return;
     const head=event.target.closest?.('.g-card-head');
     if (head) {
@@ -376,7 +442,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     } else if (event.target===viewport||event.target===stage||event.target===edgeLayer) {
       dragging={kind:'pan',x:panX,y:panY,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
     }
-    if(dragging){onActivity();viewport.setPointerCapture(event.pointerId);}
+    if(dragging){hideSelection();onActivity();viewport.setPointerCapture(event.pointerId);}
   });
   viewport.addEventListener('pointermove',event=>{
     if(!dragging || event.pointerId!==dragging.pointerId)return;
@@ -416,7 +482,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     element:viewport,
     reconcile(state, change){
       const routeChanged=previousRoute!==state.route;
-      if(routeChanged){previousRoute=state.route;initialFocusPending=true;stablePositions.clear();
+      if(routeChanged){hideSelection();previousRoute=state.route;initialFocusPending=true;stablePositions.clear();
         selectedCompare=[];focusedId=null;inspector.hide();}
       positions=state.positions;turns=state.turns;bookmarks=state.bookmarks||[];
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
@@ -469,7 +535,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       }
     },
     fit,focus,
-    closeInspector:()=>inspector.hide(),
+    closeInspector:()=>{hideSelection();inspector.hide();},
+    hideSelection,
     inspectorOpen:()=>inspector.visible,
     stats:()=>({mountedCards:cards.size,canvasTurns:turns.length,
       renderedEdges:edgePaths.size,branchNodes:branchNodes.size,
