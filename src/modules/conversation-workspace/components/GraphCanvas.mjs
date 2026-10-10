@@ -93,26 +93,51 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   }
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
-  let autoFit = true, edgesQueued = false, previousRoute = null, initialFocusPending = true;
+  let autoFit = true, edgesQueued = false, cameraQueued=false, previousRoute = null, initialFocusPending = true;
   let stablePositions = new Map();
   const cards = new Map();
   const branchNodes=new Map();
   let branchPositions=new Map(),branchEdges=[],branchCurrent=null,visibleQueued=false;
   let spatialIndex=buildSpatialIndex([]),lastViewportUpdateMs=0,maxViewportUpdateMs=0;
-  const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(()=>queueEdges()):null;
+  const measuredBounds=new Map();
+  const edgePaths=new Map();
+  const cardResize=typeof ResizeObserver==='function'?new ResizeObserver(entries=>{
+    let geometryChanged=false;
+    for(const entry of entries){
+      const id=entry.target?.dataset?.turnId;
+      if(!id)continue;
+      const box=entry.borderBoxSize?.[0]||entry.borderBoxSize;
+      const width=box?.inlineSize??entry.contentRect?.width;
+      const height=box?.blockSize??entry.contentRect?.height;
+      if(!Number.isFinite(width)||!Number.isFinite(height))continue;
+      const before=measuredBounds.get(id);
+      if(before?.width===width&&before?.height===height)continue;
+      measuredBounds.set(id,{width,height});
+      geometryChanged=true;
+    }
+    if(geometryChanged){rebuildIndex();queueEdges();}
+  }):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
+  // Camera movement changes no world-space edge geometry. Coalesce all
+  // pointer/wheel input into a single frame; visibility diff owns mount edges.
   const renderTransform = () => {
-    stage.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
-    zoomLabel.textContent = Math.round(scale*100) + '%';
-    minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
-    queueEdges();scheduleVisible();
+    if(cameraQueued)return;
+    cameraQueued=true;
+    requestAnimationFrame(()=>{
+      cameraQueued=false;
+      stage.style.transform='translate('+panX+'px,'+panY+'px) scale('+scale+')';
+      zoomLabel.textContent=Math.round(scale*100)+'%';
+      minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
+      scheduleVisible();
+    });
   };
   const point = (turn,index) => positions[turn.id] || stablePositions.get(turn.id) || layoutPoint(index);
 
   function rebuildIndex(){
     spatialIndex=buildSpatialIndex(turns.map((turn,i)=>{
       const p=point(turn,i);
-      return {id:turn.id,x:p.x,y:p.y,w:400,h:600};
+      const size=measuredBounds.get(turn.id);
+      return {id:turn.id,x:p.x,y:p.y,w:size?.width||400,h:size?.height||600};
     }));
   }
   function syncVisibleCards(){
@@ -122,10 +147,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight
     });
     const active=new Set(visible);
+    let mountedChanged=false;
     for(const [id,card] of cards) {
       if(!active.has(id)&&!(dragging?.id===id)&&
           !card.contains(card.getRootNode()?.activeElement)){
-        cardResize?.unobserve(card);card.remove();cards.delete(id);
+        cardResize?.unobserve(card);card.remove();cards.delete(id);mountedChanged=true;
       }
     }
     for(const id of visible) {
@@ -137,7 +163,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         card=createChatCard(turn,{index,onSource,onFocus:focus,onCompose,onSend,onFork,
           onRead:readTurn,onCompare:selectForCompare,onBookmark,
           isLatest:index===turns.length-1});
-        card.tabIndex=-1;cards.set(id,card);stage.append(card);
+        card.tabIndex=-1;cards.set(id,card);stage.append(card);mountedChanged=true;
         cardResize?.observe(card);
         card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
       } else if(card._lastTurn!==turn || card._lastIndex!==index ||
@@ -152,42 +178,61 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         const p=point(turn,index);card.style.left=p.x+'px';card.style.top=p.y+'px';
       }
     }
-    applySearch();queueEdges();
+    applySearch();if(mountedChanged)queueEdges();
     lastViewportUpdateMs=Math.round((performance.now()-started)*100)/100;
     maxViewportUpdateMs=Math.max(maxViewportUpdateMs,lastViewportUpdateMs);
   }
   function scheduleVisible(){
     if(!visibleQueued){visibleQueued=true;requestAnimationFrame(syncVisibleCards);}
   }
-  const drawEdges = () => {
+  function drawEdges(){
     edgesQueued=false;
-    edgeLayer.replaceChildren();
-    for(const [id,bCard] of cards){
+    const geometry=new Map();
+    for(const [id,card] of cards){
       const i=turnIndexById.get(id);
       if(!i)continue;
-      const aCard=cards.get(turns[i-1].id);
-      if(!aCard||!bCard)continue;
-      const a=point(turns[i-1],i-1),b=point(turns[i],i);
-      const x1=a.x+aCard.offsetWidth,y1=a.y+43,x2=b.x,y2=b.y+43;
+      const previous=turns[i-1],first=cards.get(previous.id);
+      if(!first)continue;
+      const a=point(previous,i-1),b=point(turns[i],i);
+      const x1=a.x+(measuredBounds.get(previous.id)?.width||366),y1=a.y+43;
+      const x2=b.x,y2=b.y+43;
       const bend=Math.max(60,Math.abs(x2-x1)*.42);
-      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d','M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2);
-      path.setAttribute('fill','none');path.setAttribute('stroke','var(--g-edge)');
-      path.setAttribute('stroke-width','1.7');edgeLayer.append(path);
+      geometry.set('seq:'+previous.id+':'+id,{
+        d:'M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2,
+        branch:false
+      });
     }
-    // ONLY confirmed native parent/child relationships are dashed.
     for(const edge of branchEdges){
       const a=branchPositions.get(edge.from),b=branchPositions.get(edge.to);
       if(!a||!b)continue;
       const x1=a.x+230,y1=a.y+39,x2=b.x,y2=b.y+39;
       const bend=Math.max(50,(x2-x1)*.45);
-      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d','M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2);
-      path.setAttribute('fill','none');path.setAttribute('stroke','var(--g-text)');
-      path.setAttribute('stroke-dasharray','4 5');path.setAttribute('stroke-width','1.5');
-      edgeLayer.append(path);
+      geometry.set('branch:'+edge.id,{
+        d:'M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2,
+        branch:true
+      });
     }
-  };
+    for(const [id,old] of edgePaths) {
+      if(geometry.has(id))continue;
+      old.element.remove();edgePaths.delete(id);
+    }
+    for(const [id,entry] of geometry){
+      let existing=edgePaths.get(id);
+      if(!existing){
+        const element=document.createElementNS('http://www.w3.org/2000/svg','path');
+        element.setAttribute('fill','none');
+        element.setAttribute('stroke',entry.branch?'var(--g-text)':'var(--g-edge)');
+        element.setAttribute('stroke-width',entry.branch?'1.5':'1.7');
+        if(entry.branch)element.setAttribute('stroke-dasharray','4 5');
+        edgeLayer.append(element);
+        existing={element,d:null};edgePaths.set(id,existing);
+      }
+      if(existing.d!==entry.d){
+        existing.d=entry.d;
+        existing.element.setAttribute('d',entry.d);
+      }
+    }
+  }
   function renderBranchNodes(records,route,previews={}) {
     const tree=buildBranchWorkspace(records,route);
     const last=turns[turns.length-1];
@@ -387,7 +432,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     closeInspector:()=>inspector.hide(),
     inspectorOpen:()=>inspector.visible,
     stats:()=>({mountedCards:cards.size,canvasTurns:turns.length,
-      renderedEdges:edgeLayer.childElementCount,branchNodes:branchNodes.size,
+      renderedEdges:edgePaths.size,branchNodes:branchNodes.size,
       lastViewportUpdateMs,maxViewportUpdateMs,spatialIndexEntries:spatialIndex.count}),
     nextTurn(step=1){
       if(!turns.length)return;
