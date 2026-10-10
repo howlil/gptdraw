@@ -56,3 +56,13 @@ changing the spatial grid or virtualized DOM boundaries.
 5. Select a phrase in Focus Reading and compare again. Selection remains useful after streaming updates.
 6. Choose **Fork**: the native source assistant action opens only if available; selected plaintext is not persisted, and confirmation requires the actual new conversation. Paste the copied quote into the child to focus it.
 7. Test Chrome closed-Shadow DOM selection; if the toolbar does not appear, capture compatibility diagnostics (counts/status only). Browser fixture tests alone do not prove this integration.
+
+## New-chat / SPA / long-history regression
+
+1. Open `chatgpt.com` on the new-chat route. Confirm empty chat uses exactly the Dialogue card styling and compact composer (not the legacy oversized start panel).
+2. Type/send a native chat message; user/assistant turn should replace the empty card without forcing Refresh and should continue streaming in place.
+3. Open a pre-existing conversation from the native sidebar; verify that cards appear automatically even while layout/branch metadata reads are in progress.
+4. Open a chat with substantially more than five turns. Observe **turns loaded** increasing as native backfill moves up then down; use First/Latest/Find to visit older cards beyond currently mounted viewport cards.
+5. Test virtualization that reuses `conversation-turn-0..` identifiers. No duplicated cards for a repeated window; windows from proven scrolling appear with a visible **edge gap** at unverified joins.
+6. Confirm an unavailable native scrollport reports a partial-history limitation; gptdraw must never claim all server-side history is present.
+7. Navigate rapidly A → B → A, toggle graph/native while metadata is still loading, and confirm no stale messages, unintentional native scroll or reactivated stopped observer.

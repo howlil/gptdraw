@@ -36,6 +36,13 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 - Focus Reading updates streamed answer blocks in place; preserve the scroll position and defer active text selections. Large conversations use spatial-grid viewport culling, not a DOM card for every offscreen turn.
 - Keep the surrounding ChatGPT sidebar native; avoid adding a floating launcher or full-page modal.
 
+## One entry point and truthful loading
+
+- New-chat and existing-chat loading states must reuse the same Dialogue card typography, compact header and composer geometry. Avoid a separate "legacy Start Card" visual language.
+- Existing conversations should begin native DOM observation immediately, without waiting for Chrome storage/IndexedDB; refresh is a fallback, not a required entry action.
+- Distinguish **turns loaded in session** from **card DOM elements currently mounted** by viewport virtualization.
+- During progressive older-history scans, positional native IDs are not trusted as stable. Display directional windows from real native scrolling but omit sequential connectors at unverified discontinuities. Do not imply all account history has been recovered.
+
 ## Conversation canvas
 
 - Nodes represent consecutive visible turn pairs in one ChatGPT conversation. The overlay is measured against the native `main` bounding rectangle and updates when the sidebar opens/closes. Do not position the workspace across the full viewport or cover ChatGPT navigation.

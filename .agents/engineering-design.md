@@ -153,3 +153,11 @@ All slices extend the same ownership tree; do not rebuild the app horizontally o
 - **R / runtime:** native MutationObserver, requestAnimationFrame, ResizeObserver, requestIdleCallback with fallback and AbortSignal; no new runtime dependencies or graph library.
 - **Scope:** observer weak maps and active scans terminate with workspace; history batch timer clears on stop/route change; mounted SVG edge path identities live only in the canvas.
 - **Proof:** `tests/streaming-cache.test.mjs`, `tests/history-yield.test.mjs`, `tests/history-batching.test.mjs` alongside existing graph/performance tests; Chrome DevTools profiling still required for p95 frame and responsiveness claims.
+
+## Chat readiness and recycled-history identities
+
+- Controller launches `loadRoute()` (which resets synchronously) and **starts the DOM observer before awaiting async metadata**. Lifecycle/route generation guards still protect stop and navigation races.
+- The observer watches its selected native `main` and watches BODY subtree *only for main replacement/SPA route changes*, filtering ordinary messages inside the active root so the duplicate observer does not reparse every streamed token.
+- Native `conversation-turn-N` IDs may be reused by virtualization. The controller assigns **RAM-only `user:observed:N`/`assistant:observed:N` identities**, with bounded exact-window signatures and corroborated text matches. Those aliases are **not stable** and must never authorize bookmark/Fork persistence.
+- History windows scanned after **measured scroll movement** can be included in the direction encountered even if no ID overlap exists. Mark the discontinuity `breakBefore`, and suppress its world-space SVG connector; do not treat physical scroll as proof of adjacent messages. Unknown windows observed without verified movement remain unresolved.
+- Observer scan callbacks include `{direction,moved,scrollTop}`. Retain in-memory-only state; never store text fingerprints, observed aliases or expanded history in Chrome storage.

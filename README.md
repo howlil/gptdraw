@@ -98,6 +98,13 @@ Search caches normalized text per stable turn content and limits the initial out
 - **Compatibility diagnostics:** toolbar panel reports observed DOM counts, ID stability, history status, observer state and viewport reconciliation cost. **Copy diagnostics** includes no message text, URLs, account details, cookies or secrets.
 - **Real Chrome acceptance:** follow [Chrome smoke-test runbook](docs/CHROME_SMOKE_TEST.md). CI tests/build do not prove the real ChatGPT DOM or native Branch menu is compatible.
 
+## Entry point and history reliability
+
+- **One Dialogue card system:** the empty/new conversation state uses the same card header, body typography and compact native-composer bridge as regular ChatCards. An existing chat with no detected DOM turns shows an honest loading/unavailable state—not a fake new-chat form.
+- **No manual Refresh dependency:** attach the native DOM observer immediately on entry while local layout/branch metadata loads asynchronously. Detect ChatGPT SPA route changes and nested conversation-main replacement.
+- **Virtualized history:** recycled `conversation-turn-N` indexes receive **volatile per-route observation IDs**. Backfill follows the native scrollport up/down, merging stable or corroborated overlaps. When an actual directional scroll reaches a disjoint message window, gptdraw can include its cards, but marks a gap and does **not** draw a chronological edge across the unverified boundary.
+- The toolbar shows **turns loaded**, which differs from the small number of near-viewport cards mounted at once for performance. Complete ChatGPT server history is **not guaranteed** if the website does not render or scroll to it.
+
 ## Current limitations
 
 - DOM selectors are version-sensitive. **Not live-tested on the latest authenticated ChatGPT web UI in this environment.** If ChatGPT changes markup, update `adapters/chatgpt-dom.mjs` after inspecting the real page.
