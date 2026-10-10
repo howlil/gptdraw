@@ -32,10 +32,31 @@ export function findHistoryScroller(doc, main) {
   return null;
 }
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+// Yield background parsing while the tab is hidden or the user is interacting.
+// Never execute a scan after cancellation, even when the idle callback is late.
+export async function yieldForHistory(doc,signal,{
+  isInteracting=()=>false,wait=delay
+}={}) {
+  while(!signal?.aborted &&
+      (doc?.visibilityState==='hidden' || isInteracting())){
+    await wait(100);
+  }
+  if(signal?.aborted)return false;
+  const view=doc?.defaultView;
+  if(typeof view?.requestIdleCallback==='function'){
+    await new Promise(resolve=>{
+      const handle=view.requestIdleCallback(resolve,{timeout:180});
+      if(signal?.aborted && typeof view.cancelIdleCallback==='function')
+        view.cancelIdleCallback(handle);
+    });
+  }
+  return !signal?.aborted;
+}
 export async function backfillHistory({
   document,root,onScan,onStatus=()=>{},signal,
   findScroller=findHistoryScroller,wait=delay,
-  maxSteps=300,idleLimit=12,waitMs=100
+  maxSteps=300,idleLimit=12,waitMs=100,
+  yieldForScan=()=>yieldForHistory(document,signal)
 }) {
   const scroller=findScroller(document,root);
   if(!scroller){onStatus({status:'unavailable',steps:0});return 'unavailable';}
@@ -53,7 +74,7 @@ export async function backfillHistory({
       const step=Math.max(220,Math.min(scroller.clientHeight*.82,900));
       scroller.scrollTop=Math.max(0,before-step);
       await wait(waitMs);
-      if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+      if(!(await yieldForScan()) || abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
       const current=await onScan();
       count=Math.max(count,current?.count||0);
       const head=current?.firstId||null,height=scroller.scrollHeight;
@@ -77,7 +98,7 @@ export async function backfillHistory({
         const before=scroller.scrollTop;
         scroller.scrollTop=Math.min(max,before+Math.max(220,Math.min(scroller.clientHeight*.82,900)));
         await wait(waitMs);
-        if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+        if(!(await yieldForScan()) || abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
         const info=await onScan();
         count=Math.max(count,info?.count||0);
         const end=scroller.scrollTop>=Math.max(0,scroller.scrollHeight-scroller.clientHeight-2);
