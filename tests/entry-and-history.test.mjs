@@ -81,3 +81,41 @@ test('new chat Start Card uses the same Dialogue card/composer vocabulary, exist
     else globalThis.document=original;
   }
 });
+
+test('positional streaming answer rerender updates existing card instead of duplicating it',async()=>{
+  let cb,state;
+  const messages=page('Current');
+  const ctrl=createWorkspaceController({
+    pathname:()=>'/c/stream',
+    layoutStorage:{read:async()=>({}),write:async()=>{}},
+    observe:x=>{cb=x;return{start(){x.onSnapshot(messages);},stop(){}}},
+    onUpdate:next=>{state=next;}
+  });
+  await ctrl.start();
+  const before=state.turns.map(x=>x.id);
+  const changed=messages.map(row=>({...row}));
+  changed[1].text+=' plus newly streamed tokens';
+  cb.onSnapshot(changed);
+  assert.equal(state.turns.length,5);
+  assert.deepEqual(state.turns.map(x=>x.id),before);
+  assert.equal(state.turns[0].answer,changed[1].text);
+  ctrl.stop();
+});
+
+test('SPA conversation switch projects newly loaded conversation without manual refresh',async()=>{
+  let cb,state;
+  const ctrl=createWorkspaceController({
+    pathname:()=>'/c/first',
+    layoutStorage:{read:async()=>({}),write:async()=>{}},
+    observe:x=>{cb=x;return{start(){x.onSnapshot(page('First'));},stop(){}}},
+    onUpdate:next=>{state=next;}
+  });
+  await ctrl.start();
+  assert.equal(state.turns.length,5);
+  cb.onRoute('/c/second');
+  cb.onSnapshot(page('Second'));
+  assert.equal(state.route,'conversation:second');
+  assert.equal(state.turns.length,5);
+  assert.ok(state.turns[0].prompt.startsWith('Second'));
+  ctrl.stop();
+});
