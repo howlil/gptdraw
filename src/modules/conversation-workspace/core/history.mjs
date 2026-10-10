@@ -32,7 +32,7 @@ export function mergeVisibleMessages(known,visible,loadingEarlier=false) {
 }
 function canAnchor(old,now) {
   if(old.id!==now.id || old.role!==now.role)return false;
-  if(old.identity==='stable' && now.identity==='stable')return true;
+  if((!old.identity||old.identity==='stable') && (!now.identity||now.identity==='stable'))return true;
   // Turn keys or session-only observed IDs need content corroboration. A
   // recycled positional index with the same ID is never enough.
   return (old.identity==='candidate'||old.identity==='ephemeral'||
