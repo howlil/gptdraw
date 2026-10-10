@@ -373,6 +373,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     fit,focus,
     closeInspector:()=>inspector.hide(),
     inspectorOpen:()=>inspector.visible,
+    stats:()=>({mountedCards:cards.size,canvasTurns:turns.length,
+      renderedEdges:edgeLayer.childElementCount,branchNodes:branchNodes.size}),
     nextTurn(step=1){
       if(!turns.length)return;
       const index=turnIndexById.get(focusedId);

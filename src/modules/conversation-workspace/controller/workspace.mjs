@@ -141,6 +141,16 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       observer?.stop();observer=null;
     },
     getSource(id) { return observer?.getElement(id) || null; },
+    getDiagnostics(){
+      const source=observer?.getDiagnostics?.() || {};
+      return {adapter:'ChatGPT rendered DOM',observerActive:running&&!!observer,
+        turns:turns.length,messages:messages.length,
+        stableMessages:messages.filter(m=>m.identity==='stable' ||
+          (m.identity===undefined&&stableMessageId(m.id))).length,
+        unresolvedSegments:unresolved.length,
+        historyStatus:history.status,historyPhase:history.phase||'none',
+        branchCount:branches.length,bookmarks:bookmarks.length,...source};
+    },
     refresh() { observer?.refresh();observer?.loadEarlier?.(); },
     pauseHistory() { observer?.pauseHistory?.(); },
     async toggleBookmark(id) {

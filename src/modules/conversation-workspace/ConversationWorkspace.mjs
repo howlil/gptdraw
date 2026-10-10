@@ -1,8 +1,9 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
+import { createDiagnosticsPanel } from './components/DiagnosticsPanel.mjs';
 
 export function createConversationWorkspace({ onClose, onSource, onCompose, onRefresh, onMove, onStart, onSend,
-  onFork, onBookmark, onConfirmBranch, onDismissBranch, onOpenConversation }) {
+  onFork, onBookmark, onConfirmBranch, onDismissBranch, onOpenConversation, onDiagnostics }) {
   const wrapper=document.createElement('div'); wrapper.className='g-workspace'; wrapper.hidden=true;
   const header=document.createElement('header'); header.className='g-topbar';
   const branding=document.createElement('div'); branding.className='g-brand';
@@ -19,7 +20,10 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   const count=document.createElement('span');count.className='g-turn-count';
   const historyLabel=document.createElement('span');historyLabel.className='g-history-status';
   historyLabel.setAttribute('role','status');historyLabel.setAttribute('aria-live','polite');
-  tools.append(search,control('Show conversation outline','list',()=>canvas.toggleOutline()),historyLabel,count,control('Load earlier messages / Sync','refresh',onRefresh));
+  const diagnostics=createDiagnosticsPanel(()=>Promise.resolve({...onDiagnostics(),...canvas.stats()}));
+  tools.append(search,control('Show conversation outline','list',()=>canvas.toggleOutline()),
+    control('Compatibility diagnostics','list',()=>diagnostics.open()),
+    historyLabel,count,control('Load earlier messages / Sync','refresh',onRefresh));
   const compose=document.createElement('button');compose.type='button';
   compose.className='g-primary-control';compose.append(icon('message',15));
   compose.append(document.createTextNode(' Back to ChatGPT'));
@@ -36,6 +40,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   dismiss.addEventListener('click',async()=>{try{await onDismissBranch();}catch(error){branchError.textContent=error.message;}});
   const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onBookmark,onOpenConversation});
   wrapper.append(canvas.element);
+  wrapper.append(diagnostics.element);
   const footer=document.createElement('footer');footer.className='g-footer';
   footer.innerHTML='<span>J / K navigate · R read · B branches · F fit · / find · Esc return</span><span>Native ChatGPT owns all AI responses</span>';
   wrapper.append(footer);
@@ -69,6 +74,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
       historyLabel.textContent=labels[status] || '';
       if(status==='loading'&&state.history?.count>0)
         historyLabel.textContent='Scanning history · '+Math.floor(state.history.count/2)+' turns';
+      if(state.history?.unresolved>0)historyLabel.textContent+=' · '+state.history.unresolved+' unlinked history pages';
       historyLabel.hidden=!historyLabel.textContent;
       const pending=state.pendingBranch;
       const current=state.route?.startsWith('conversation:')?state.route.slice(13):null;

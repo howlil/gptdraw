@@ -132,6 +132,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   let pathname = document.defaultView?.location.pathname || '/';
   let nodes = new Map(), targetIds = new WeakMap(), pending = new Set(), rescan = true;
   let backfillAbort = null, historyStarted = false;
+  let domScans=0,domPatches=0;
   const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
   function startBackfill() {
     if (!mounted || historyStarted || backfillAbort || !onHistory ||
@@ -151,6 +152,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     }).finally(() => {if(backfillAbort === controller)backfillAbort = null;});
   }
   const snapshot = () => {
+    domScans++;
     const rows = collectMessages(root);
     nodes = new Map(rows.map(row => [row.id,row]));
     targetIds = new WeakMap();
@@ -196,7 +198,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
         const updated = { ...previous,text,source,blocks:extracted?.blocks || [] };
         nodes.set(id,updated);
         targetIds.set(source,id);
-        onPatch(updated);
+        domPatches++;onPatch(updated);
       }
     }
     pending.clear();
@@ -247,6 +249,11 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     loadEarlier() { historyStarted=false;cancelBackfill();startBackfill(); },
     pauseHistory() {cancelBackfill();historyStarted=true;onHistory?.({status:'paused'});},
     getElement(id) { return nodes.get(id)?.element || null; },
+    getDiagnostics(){
+      return {domScans,domPatches,rootPresent:!!root,
+        liveDOMMessages:nodes.size,historyActive:!!backfillAbort,
+        idSource:nodes.size && [...nodes.keys()].some(id=>id.includes('visible:'))?'mixed':'native-or-candidate'};
+    },
     stop() {
       mounted = false;cancelBackfill();historyStarted=false;observer?.disconnect();bodyObserver?.disconnect();
       document.defaultView?.removeEventListener('popstate',nav);
