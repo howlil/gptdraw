@@ -42,9 +42,22 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const outlineClose=control('Close outline','close',()=>toggleOutline());
   outlineHead.append(outlineTitle,outlineClose);
   const outlineItems=document.createElement('div');outlineItems.className='g-outline-items';
-  outline.append(outlineHead,outlineItems);viewport.append(outline);
+  const moreOutline=document.createElement('button');
+  moreOutline.type='button';moreOutline.className='g-outline-item';
+  moreOutline.textContent='Show more results';
+  moreOutline.hidden=true;
+  moreOutline.addEventListener('click',()=>{outlineLimit+=60;renderOutline();});
+  outline.append(outlineHead,outlineItems,moreOutline);viewport.append(outline);
   let query='',outlineOpen=false,bookmarks=[],selectedCompare=[],focusedId=null;
-  const searchable=turn=>((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
+  const searchCache=new Map();
+  let outlineLimit=60;
+  const searchable=turn=>{
+    const known=searchCache.get(turn.id);
+    if(known?.turn===turn)return known.text;
+    const value=((turn.prompt||'')+' '+(turn.answer||'')).toLowerCase();
+    searchCache.set(turn.id,{turn,text:value});
+    return value;
+  };
   const turnById=new Map(),turnIndexById=new Map();
   const readTurn=id=>{
     const turn=turnById.get(id);
@@ -69,19 +82,27 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   function renderOutline(){
     if(!outlineOpen)return;
     outlineItems.replaceChildren();
-    turns.forEach((turn,i)=>{
-      if(query&&!searchable(turn).includes(query))return;
+    let matches=0;
+    const fragment=document.createDocumentFragment();
+    for(let i=0;i<turns.length;i++){
+      const turn=turns[i];
+      if(query&&!searchable(turn).includes(query))continue;
+      matches++;
+      if(matches>outlineLimit)continue;
       const btn=document.createElement('button');btn.type='button';
       btn.className='g-outline-item';
       const number=document.createElement('span');number.className='g-outline-number';
       number.textContent=String(i+1).padStart(2,'0');
-      const text=document.createElement('span');text.textContent=turn.prompt;
-      btn.append(number,text);
+      const label=document.createElement('span');label.textContent=turn.prompt;
+      btn.append(number,label);
       if(bookmarks.includes(turn.id))btn.prepend(document.createTextNode('◈ '));
       btn.addEventListener('click',()=>{focus(turn.id);toggleOutline();});
-      outlineItems.append(btn);
-    });
-    if(!outlineItems.childElementCount){
+      fragment.append(btn);
+    }
+    outlineTitle.textContent=query?'Matches · '+matches:'Conversation outline · '+matches;
+    outlineItems.append(fragment);
+    moreOutline.hidden=matches<=outlineLimit;
+    if(!matches){
       const empty=document.createElement('p');empty.className='g-outline-empty';
       empty.textContent='No matching cards';outlineItems.append(empty);
     }
@@ -383,11 +404,12 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         selectedCompare=[];focusedId=null;inspector.hide();}
       positions=state.positions;turns=state.turns;bookmarks=state.bookmarks||[];
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
-      if(routeChanged){turnById.clear();turnIndexById.clear();}
+      if(routeChanged){turnById.clear();turnIndexById.clear();searchCache.clear();outlineLimit=60;}
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
         const index=turnIndexById.get(change.turnId);
         if(index!==undefined)turnById.set(change.turnId,turns[index]);
+        searchCache.delete(change.turnId);
         if(card) {
           const turn=turns[card._turnIndex];
           card._update(turn,card._turnIndex,card._turnIndex===turns.length-1);
@@ -414,7 +436,9 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       }
       stablePositions=stabilizeLayout(turns,stablePositions,positions);
       turnById.clear();turnIndexById.clear();
-      turns.forEach((turn,index)=>{turnById.set(turn.id,turn);turnIndexById.set(turn.id,index);});
+      const current=new Set();
+      turns.forEach((turn,index)=>{turnById.set(turn.id,turn);turnIndexById.set(turn.id,index);current.add(turn.id);});
+      for(const id of searchCache.keys())if(!current.has(id))searchCache.delete(id);
       rebuildIndex();syncVisibleCards();
       renderOutline();
       renderBranchNodes(state.branches,state.route,state.previews);
@@ -442,7 +466,10 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     },
     readFocused(){const id=focusedId||turns[turns.length-1]?.id;if(id)readTurn(id);},
     focusBranches,
-    search(value) {query=String(value||'').trim().toLowerCase();applySearch();if(query)outlineOpen=true;outline.hidden=!outlineOpen;renderOutline();},
+    search(value) {const next=String(value||'').trim().toLowerCase();
+      if(next===query)return;
+      query=next;outlineLimit=60;applySearch();
+      if(query)outlineOpen=true;outline.hidden=!outlineOpen;renderOutline();},
     toggleOutline
   };
 }
