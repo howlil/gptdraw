@@ -190,3 +190,41 @@ test('assistant role metadata nested under turn recovers the sibling rendered an
   assert.equal(rows.length,1);
   assert.equal(rows[0].text,'Actual answer with multiple paragraphs');
 });
+
+test('nested SPA main replacement is observed without pressing Refresh',async()=>{
+  let current=[fixture('conversation-turn-0','user','Old message')];
+  let main={
+    isConnected:true,
+    querySelectorAll:()=>current,
+    contains:()=>false
+  };
+  const events=[],callbacks=[],frames=[];
+  const page={location:{pathname:'/c/first'},addEventListener(){},removeEventListener(){}};
+  const body={};
+  const doc={body,defaultView:page,querySelector:()=>main};
+  const original=globalThis.MutationObserver;
+  globalThis.MutationObserver=class {
+    constructor(callback){callbacks.push(callback);}
+    observe(){}disconnect(){}
+  };
+  try{
+    const reader=createChatGPTObserver({
+      document:doc,onSnapshot:rows=>events.push({type:'snapshot',text:rows[0]?.text}),
+      onPatch:()=>{},onRoute:path=>events.push({type:'route',path}),
+      schedule:fn=>frames.push(fn)
+    });
+    reader.start();
+    frames.shift()();
+    assert.equal(events.at(-1).text,'Old message');
+    main.isConnected=false;
+    current=[fixture('conversation-turn-0','user','Next message')];
+    main={isConnected:true,querySelectorAll:()=>current,contains:()=>false};
+    page.location.pathname='/c/second';
+    callbacks[1]([{type:'childList',target:body,addedNodes:[],removedNodes:[]}]);
+    await Promise.resolve();
+    frames.shift()();
+    assert.ok(events.some(e=>e.type==='route'&&e.path==='/c/second'));
+    assert.equal(events.at(-1).text,'Next message');
+    reader.stop();
+  }finally{globalThis.MutationObserver=original;}
+});
