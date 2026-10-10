@@ -32,3 +32,38 @@ export function createBranchStorage(storage, changes=globalThis.chrome?.storage?
     }
   };
 }
+
+
+// Production adapter delegates ALL lineage mutations to the extension-owned
+// service worker IndexedDB transaction. chrome.storage pulse is notification
+// only, not the source of truth.
+export function createRpcBranchStorage(runtime,changes) {
+  const PULSE='gptdraw:lineage-revision:v1';
+  const request=(operation,payload={})=>new Promise((resolve,reject)=>{
+    runtime.sendMessage({type:'GPTDRAW_LINEAGE',operation,payload},response=>{
+      if(runtime.lastError)return reject(new Error(runtime.lastError.message));
+      if(!response?.ok)return reject(new Error(response?.error||'Lineage service unavailable.'));
+      resolve(response);
+    });
+  });
+  return {
+    async list(){return (await request('read')).state.records;},
+    async pending(){
+      const value=(await request('read')).state.pending;
+      return value?.status==='pending' && Date.now()-value.createdAt<20*60*1000?value:null;
+    },
+    async begin(record){return (await request('begin',{record})).result;},
+    async confirm(pendingId,childConversationId){
+      return (await request('confirm',{pendingId,childConversationId})).result;
+    },
+    async dismiss(pendingId){return (await request('dismiss',{pendingId})).result;},
+    subscribe(listener){
+      if(!changes?.addListener)return ()=>{};
+      const handler=(diff,area)=>{
+        if(area==='local'&&Object.hasOwn(diff,PULSE))listener();
+      };
+      changes.addListener(handler);
+      return ()=>changes.removeListener(handler);
+    }
+  };
+}

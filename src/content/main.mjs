@@ -2,7 +2,7 @@ import { createChatGPTObserver, findChatMain } from '../modules/conversation-wor
 import { submitNativePrompt, findNativeComposer } from '../modules/conversation-workspace/adapters/native-composer.mjs';
 import { createLayoutStorage } from '../modules/conversation-workspace/adapters/metadata.mjs';
 import { revealNativeSource } from '../modules/conversation-workspace/adapters/source-navigation.mjs';
-import { createBranchStorage } from '../modules/conversation-workspace/adapters/branches.mjs';
+import { createRpcBranchStorage } from '../modules/conversation-workspace/adapters/branches.mjs';
 import { prepareNativeBranch } from '../modules/conversation-workspace/adapters/chatgpt-branch.mjs';
 import { createWorkspaceController } from '../modules/conversation-workspace/controller/workspace.mjs';
 import { createConversationWorkspace } from '../modules/conversation-workspace/ConversationWorkspace.mjs';
@@ -44,7 +44,8 @@ if (!document.getElementById(HOST_ID)) {
   const controller=createWorkspaceController({
     pathname:()=>location.pathname,
     layoutStorage:storage,
-    branchStorage:createBranchStorage(chrome.storage.local),
+    branchStorage:createRpcBranchStorage(chrome.runtime,chrome.storage.onChanged),
+    resolveForkSource:id=>revealNativeSource(document,id),
     prepareFork:node=>prepareNativeBranch(document,node),
     observe:callbacks=>createChatGPTObserver({document,...callbacks}),
     onUpdate:(state,change)=>workspace.render(state,change)

@@ -5,7 +5,7 @@ import { conversationId, createPendingBranch, confirmBranch, branchRelations, st
 // Single owner: native conversation is truth; this controller only projects
 // visible DOM turns and persists extension-owned layout metadata.
 export function createWorkspaceController({ observe, layoutStorage, branchStorage=null, prepareFork=null,
-  onUpdate, pathname = () => location.pathname, idFactory = () => crypto.randomUUID() }) {
+  onUpdate, pathname = () => location.pathname, idFactory = () => crypto.randomUUID(), resolveForkSource=null }) {
   let route = routeKey(pathname());
   let messages = [], turns = [], positions = {};
   let history = {status:'idle',steps:0};
@@ -162,26 +162,35 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
         throw new Error('Open an existing ChatGPT conversation with a completed assistant answer.');
       if(!stableMessageId(turn.assistantId))
         throw new Error('This response lacks a durable message ID. Native Fork remains available in ChatGPT, but gptdraw cannot safely save its lineage.');
-      const node=observer?.getElement(turn.assistantId);
-      if(!node?.isConnected)
-        throw new Error('The source response is not currently rendered. Return to the native source and retry.');
-      // One unconfirmed native action at a time. Never replace a different
-      // tab's pending lineage with a second click from this conversation.
+      // One user action at a time; reserve atomic intent only after the real
+      // native menu is found. Identity/route are rechecked after scrolling.
       const existingIntent=await branchStorage.pending();
       if(existingIntent)throw new Error('Finish or dismiss the previous Fork before starting another.');
-      // Do not persist a pending link unless native Branch has been discovered.
       observer?.pauseHistory?.();
+      const forkRoute=route, token=lifecycle;
+      let node=observer?.getElement(turn.assistantId);
+      if(!node?.isConnected && resolveForkSource)
+        node=await resolveForkSource(turn.assistantId);
+      if(!node?.isConnected)
+        throw new Error('The exact native source response could not be recovered.');
+      if(!running||route!==forkRoute||lifecycle!==token)
+        throw new Error('Conversation changed during Fork source recovery.');
       const native=await prepareFork(node);
+      if(!running||route!==forkRoute||lifecycle!==token)
+        throw new Error('Conversation changed while opening the native Fork menu.');
       const record=createPendingBranch({
         id:idFactory(),parentConversationId,sourceMessageId:turn.assistantId,
         rootConversationId:branchRelations(branches,parentConversationId).parent?.rootConversationId||parentConversationId,
         anchor
       });
-      await branchStorage.setPending(record);
+      if(branchStorage.begin)await branchStorage.begin(record);
+      else await branchStorage.setPending(record);
       pendingBranch=record;branchError=null;notify({type:'branch'});
       try { native.activate(); }
       catch(error) {
-        await branchStorage.clearPending();pendingBranch=null;
+        if(branchStorage.dismiss)await branchStorage.dismiss(record.id);
+        else await branchStorage.clearPending();
+        pendingBranch=null;
         branchError=error.message;notify({type:'branch'});throw error;
       }
       return record;
@@ -191,17 +200,25 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const target=conversationId(route);
       if(!target || target===pendingBranch.parentConversationId)
         throw new Error('Open the new ChatGPT conversation before confirming its branch.');
-      const [latest,currentIntent]=await Promise.all([branchStorage.list(),branchStorage.pending()]);
-      if(!currentIntent || currentIntent.id!==pendingBranch.id)
-        throw new Error('This pending branch was already dismissed or replaced.');
-      const confirmed=confirmBranch(latest,currentIntent,target);
-      await branchStorage.save([...latest,confirmed]);
-      await branchStorage.clearPending();
-      branches=[...latest,confirmed];pendingBranch=null;branchError=null;
+      let confirmed;
+      if(branchStorage.confirm){
+        confirmed=await branchStorage.confirm(pendingBranch.id,target);
+        branches=await branchStorage.list();
+      }else{
+        const [latest,currentIntent]=await Promise.all([branchStorage.list(),branchStorage.pending()]);
+        if(!currentIntent||currentIntent.id!==pendingBranch.id)
+          throw new Error('This pending branch was already dismissed or replaced.');
+        confirmed=confirmBranch(latest,currentIntent,target);
+        await branchStorage.save([...latest,confirmed]);
+        await branchStorage.clearPending();
+        branches=[...latest,confirmed];
+      }
+      pendingBranch=null;branchError=null;
       notify({type:'branch'});return confirmed;
     },
     async dismissPending() {
-      await branchStorage?.clearPending?.();
+      if(branchStorage?.dismiss)await branchStorage.dismiss(pendingBranch?.id);
+      else await branchStorage?.clearPending?.();
       pendingBranch=null;branchError=null;notify({type:'branch'});
     },
     move(id, candidate) {
