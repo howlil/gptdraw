@@ -26,3 +26,29 @@ test('uses browser idle callback when available',async()=>{
   assert.equal(await yieldForHistory(doc,null),true);
   assert.equal(called,1);
 });
+
+test('pending idle callback abort resolves instead of hanging history shutdown',async()=>{
+  const abort=new AbortController();
+  let cancelled=0;
+  const doc={defaultView:{
+    requestIdleCallback:()=>7,
+    cancelIdleCallback:id=>{assert.equal(id,7);cancelled++;}
+  }};
+  const waiting=yieldForHistory(doc,abort.signal);
+  abort.abort();
+  assert.equal(await waiting,false);
+  assert.equal(cancelled,1);
+});
+test('input resuming between idle scheduling and scan yields again',async()=>{
+  let active=false,calls=0,waits=0;
+  const doc={defaultView:{requestIdleCallback:callback=>{
+    calls++;active=calls===1;callback();return calls;
+  }}};
+  const result=await yieldForHistory(doc,new AbortController().signal,{
+    isInteracting:()=>active,
+    wait:async()=>{waits++;active=false;}
+  });
+  assert.equal(result,true);
+  assert.equal(calls,2);
+  assert.equal(waits,1);
+});
