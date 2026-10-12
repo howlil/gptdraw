@@ -63,7 +63,7 @@ export async function yieldForHistory(doc,signal,{
       });
     } else {
       // The frame's remaining time belongs to ChatGPT, not our history scan.
-      await wait(0);
+      await delay(0);
     }
     // Input/visibility may change while an idle callback is queued.
     if(!signal?.aborted &&
