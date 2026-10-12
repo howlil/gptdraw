@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {deriveWorkspaceMode,centerEntryCamera,shouldShowMinimap} from '../src/modules/conversation-workspace/core/view-mode.mjs';
+import {deriveWorkspaceMode,centerEntryCamera,shouldShowMinimap,calculateGraphBounds} from '../src/modules/conversation-workspace/core/view-mode.mjs';
 test('workspace modes distinguish new, loading, unavailable, populated and confirmed branch',()=>{
   assert.equal(deriveWorkspaceMode({route:'route:/',turns:[]}), 'new');
   assert.equal(deriveWorkspaceMode({route:'conversation:abc',turns:[]}), 'loading');
@@ -21,4 +21,16 @@ test('minimap only appears for a graph that overflows the readable viewport',()=
   assert.equal(shouldShowMinimap(two,wide),false);
   assert.equal(shouldShowMinimap(two,{...wide,width:650}),true);
   assert.equal(shouldShowMinimap([],{...wide,width:650}),false);
+});
+
+test('cached graph envelope matches list-based minimap visibility under camera movement',()=>{
+  const points=[{x:130,y:100,w:366,h:250},{x:1450,y:160,w:366,h:300}];
+  const envelope=calculateGraphBounds(points);
+  assert.deepEqual(envelope,{count:2,minX:130,minY:100,maxX:1816,maxY:460});
+  for(const panX of [-130,-800,-1400]){
+    const camera={panX,panY:0,scale:1,width:1000,height:700};
+    assert.equal(shouldShowMinimap(envelope,camera),shouldShowMinimap(points,camera));
+  }
+  assert.equal(shouldShowMinimap(calculateGraphBounds([]),{
+    panX:0,panY:0,scale:1,width:1000,height:700}),false);
 });
