@@ -226,6 +226,14 @@
 .g-outline-head {display:flex;align-items:center;justify-content:space-between;
   padding:6px 8px 6px 12px;border-bottom:1px solid var(--g-border);}
 .g-outline-head strong {font-size:12px;font-weight:600;}
+.g-outline-search {
+  display:block;flex:none;width:calc(100% - 16px);height:34px;
+  margin:8px;padding:0 10px;border:1px solid var(--g-border);
+  border-radius:8px;background:var(--g-panel);color:var(--g-text);
+  font:400 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui;
+}
+.g-outline-search::placeholder {color:var(--g-muted);}
+.g-outline-search:focus-visible {outline:2px solid var(--g-text);outline-offset:1px;}
 .g-outline-items {padding:4px;overflow-y:auto;overscroll-behavior:contain;}
 .g-outline-item {width:100%;padding:9px 8px;border:0;border-radius:8px;
   display:flex;gap:10px;align-items:flex-start;text-align:left;
