@@ -58,6 +58,10 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   answer.addEventListener('keyup',announceSelection);
   answer.addEventListener('touchend',()=>requestAnimationFrame(announceSelection));
   async function runFork(anchor) {
+    if(fork.disabled){
+      forkStatus.textContent='Native Branch needs a durable source message ID. Use ChatGPT native actions for this turn.';
+      return false;
+    }
     forkStatus.textContent='Opening native ChatGPT Branch…';
     fork.disabled=true;
     try {
@@ -111,6 +115,19 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     if(Number.isInteger(idx))label.textContent=String(idx+1).padStart(2,'0');
     origin.textContent=latest?'Latest':'';
     card.classList.toggle('g-latest',!!latest);
+    const forkEligible=next.canFork!==false;
+    const bookmarkEligible=next.canBookmark!==false;
+    fork.disabled=!forkEligible;
+    fork.title=forkEligible
+      ?'Attempt ChatGPT native Branch in new chat'
+      :'Unavailable: this response has no durable native message ID';
+    bookmark.disabled=!bookmarkEligible;
+    bookmark.title=bookmarkEligible
+      ?(bookmark.classList.contains('g-is-bookmarked')?'Remove bookmark':'Bookmark card')
+      :'Unavailable: this prompt has no durable native message ID';
+    continueButton.disabled=!latest&&!forkEligible;
+    continueButton.title=!latest&&!forkEligible
+      ?'Continue as branch needs a durable native assistant message ID':'';
     continueButton.lastChild.textContent=latest?' Continue':' Continue as branch';
     if(question.textContent!==next.prompt)question.textContent=next.prompt;
     // Reconcile one individual answer block at a time. Streaming doesn't
