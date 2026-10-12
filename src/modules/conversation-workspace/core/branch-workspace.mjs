@@ -49,7 +49,7 @@ export function buildBranchWorkspace(records,route) {
   };
   place(root);
   return {current,root,
-    nodes:nodes.map(n=>({...n,x:n.depth*280,y:positions.get(n.id)*112})),
+    nodes:nodes.map(n=>({...n,x:n.depth*430,y:positions.get(n.id)*170})),
     edges
   };
 }
