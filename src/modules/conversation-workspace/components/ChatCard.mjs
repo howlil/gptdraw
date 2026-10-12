@@ -104,7 +104,7 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   let blocks=[],lastAnswer='',lastBlockRefs=[];
   card._setBookmark=enabled=>{
     bookmark.classList.toggle('g-is-bookmarked',!!enabled);
-    bookmark.title=enabled?'Remove bookmark':'Bookmark card';
+    bookmark.title=bookmark.disabled?'Unavailable: no durable native message ID':enabled?'Remove bookmark':'Bookmark card';
     bookmark.setAttribute('aria-label',bookmark.title);
   };
   card._setCompare=enabled=>{
