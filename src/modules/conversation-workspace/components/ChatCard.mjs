@@ -90,7 +90,8 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
       if(!card.classList.contains('g-latest'))return;
       setStatus('Sending through ChatGPT…');
       const response=await onSend(prompt);
-      if(response?.status==='activated')composer.clear();
+      if(response?.status==='observed')composer.clear();
+      else if(response?.status==='uncertain')setStatus('Send not confirmed. Check ChatGPT before trying again; your draft is preserved.');
       else setStatus('Draft prepared in ChatGPT. Finish sending there.');
     }
   });

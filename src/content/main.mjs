@@ -50,6 +50,23 @@ if (!document.getElementById(HOST_ID)) {
     observe:callbacks=>createChatGPTObserver({document,...callbacks}),
     onUpdate:(state,change)=>workspace.render(state,change)
   });
+  async function sendAndObserve(text) {
+    // Register BEFORE clicking native Send: the observer can see the turn
+    // on the very next microtask. Never clear the graph draft on click alone.
+    const waiter=controller.beginSubmission(text);
+    let result;
+    try {result=await submitNativePrompt(document,text);}
+    catch(error){waiter.cancel();throw error;}
+    if(result.status!=='activated'){
+      waiter.cancel();
+      if(result.status==='prepared'){
+        hide();
+        requestAnimationFrame(()=>findNativeComposer(document)?.focus?.());
+      }
+      return result;
+    }
+    return waiter.promise; // observed or uncertain, never a fabricated success
+  }
   const workspace=createConversationWorkspace({
     onClose:hide,
     onSource:async id=>{
@@ -66,23 +83,8 @@ if (!document.getElementById(HOST_ID)) {
         native?.focus?.();native?.scrollIntoView?.({block:'nearest'});
       });
     },
-    onStart:async text=>{
-      // Native ChatGPT stays responsible for model execution, input and send.
-      const result=await submitNativePrompt(document,text);
-      if (result.status==='prepared') {
-        hide();
-        requestAnimationFrame(()=>findNativeComposer(document)?.focus?.());
-      }
-      return result;
-    },
-    onSend:async text=>{
-      const result=await submitNativePrompt(document,text);
-      if(result.status==='prepared'){
-        hide();
-        requestAnimationFrame(()=>findNativeComposer(document)?.focus?.());
-      }
-      return result;
-    },
+    onStart:text=>sendAndObserve(text),
+    onSend:text=>sendAndObserve(text),
     onAskQuote:async quote=>{
       // A user-initiated edit, not an automatic model request. The native
       // ChatGPT composer remains authoritative and existing drafts are safe.

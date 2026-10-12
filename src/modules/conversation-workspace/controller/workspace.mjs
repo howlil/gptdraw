@@ -2,6 +2,7 @@ import { pairMessages, routeKey, safePoint } from '../core/graph.mjs';
 import { mergeAnchoredHistory } from '../core/history.mjs';
 import { conversationId, createPendingBranch, confirmBranch, branchRelations, stableMessageId } from '../core/branch.mjs';
 import { hasDurableSource, matchesLiveSource, sourceDescriptor } from '../core/message-identity.mjs';
+import {createSubmissionTracker} from '../core/submission-ack.mjs';
 
 // Single owner: native conversation is truth; this controller only projects
 // visible DOM turns and persists extension-owned layout metadata.
@@ -16,6 +17,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   let pendingLayout=null,writeTail=Promise.resolve(),unresolved=[];
   let structuralTimer=null;
   const contentSignatures=new Map();
+  const submissionTracker=createSubmissionTracker();
   // A virtualized DOM may recycle conversation-turn-0..N on every viewport.
   // Session IDs prevent collisions; exact window/content re-identification is
   // volatile and never grants a durable ID for bookmarks or native branching.
@@ -130,6 +132,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     observedOrdinal=0;lastVisibleByNative.clear();observedWindows.clear();
     flushLayout();
     route = routeKey(path);
+    submissionTracker.observe([],route);
     const seq = ++generation;
     positions = {};bookmarks=[];unresolved=[];
     messages = [];
@@ -182,6 +185,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const changed=merged.messages.length!==messages.length ||
         merged.messages.some((row,i)=>row!==messages[i]);
       messages=merged.messages;
+      submissionTracker.observe(messages,route,observation);
       if(changed)scheduleRefresh();
       return {count:messages.length,firstId:messages[0]?.id??null,unresolved:unresolved.length};
     },
@@ -203,6 +207,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const i = messageIndex.get(item.id);
       if (i === undefined) { observer?.refresh(); return; }
       messages[i] = item;
+      submissionTracker.observe(messages,route);
       const index = turnIndex.get(item.id);
       if (index === undefined) { refresh(); return; }
       const original = turns[index];
@@ -255,6 +260,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     stop() {
       if(!running)return;
       running=false;++lifecycle;++generation;
+      submissionTracker.cancel();
       flushLayout();
       if(structuralTimer!==null){clearTimeout(structuralTimer);structuralTimer=null;}
       unsubscribeBranches();unsubscribeBranches=()=>{};
@@ -262,6 +268,9 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     },
     getSource(id) {return liveSourceFor(id);},
     resolveSource,
+    beginSubmission(text) {
+      return submissionTracker.begin({text,messages,route});
+    },
     getDiagnostics(){
       const source=observer?.getDiagnostics?.() || {};
       return {adapter:'ChatGPT rendered DOM',observerActive:running&&!!observer,
