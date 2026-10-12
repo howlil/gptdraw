@@ -53,7 +53,8 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   branchNotice.append(noticeText,confirm,dismiss,branchError);wrapper.append(branchNotice);
   confirm.addEventListener('click',async()=>{confirm.disabled=true;try{await onConfirmBranch();}catch(error){branchError.textContent=error.message;}finally{confirm.disabled=false;}});
   dismiss.addEventListener('click',async()=>{try{await onDismissBranch();}catch(error){branchError.textContent=error.message;}});
-  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onAskQuote,onBookmark,onOpenConversation,onActivity});
+  const canvas=createGraphCanvas({onSource,onMove,onStart,onCompose,onSend,onFork,onAskQuote,onBookmark,onOpenConversation,onActivity,
+    onSearchChange:value=>{search.value=value;}});
   wrapper.append(canvas.element);
   wrapper.append(diagnostics.element);
   const footer=document.createElement('footer');footer.className='g-footer';
@@ -71,10 +72,20 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
     if(event.key==='Escape'&&canvas.inspectorOpen()){
       event.stopPropagation();event.preventDefault();canvas.closeInspector();return;
     }
+    if(event.key==='Escape'&&canvas.outlineOpen){
+      event.stopPropagation();event.preventDefault();canvas.closeOutline();
+      if(wrapper.clientWidth<=570)outlineButton.focus();else search.focus();
+      return;
+    }
     const element=event.target;
     if(element?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
     const key=event.key.toLowerCase();
-    if(key==='/'&&!search.hidden){event.preventDefault();search.focus();search.select();return;}
+    if(key==='/'&&!search.hidden){
+      event.preventDefault();
+      if(wrapper.clientWidth<=570)canvas.focusSearch();
+      else {search.focus();search.select();}
+      return;
+    }
     if(key==='j'||key==='k'){event.preventDefault();canvas.nextTurn(key==='j'?1:-1);}
     if(key==='r'){event.preventDefault();canvas.readFocused();}
     if(key==='b'){event.preventDefault();canvas.focusBranches();}
