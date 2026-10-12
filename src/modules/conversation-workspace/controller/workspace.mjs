@@ -1,6 +1,7 @@
 import { pairMessages, routeKey, safePoint } from '../core/graph.mjs';
 import { mergeAnchoredHistory } from '../core/history.mjs';
 import { conversationId, createPendingBranch, confirmBranch, branchRelations, stableMessageId } from '../core/branch.mjs';
+import { hasDurableSource, matchesLiveSource, sourceDescriptor } from '../core/message-identity.mjs';
 
 // Single owner: native conversation is truth; this controller only projects
 // visible DOM turns and persists extension-owned layout metadata.
@@ -75,6 +76,29 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   const notify = change => onUpdate({ route, turns, positions, history, bookmarks,
     previews:Object.fromEntries(volatilePreviews), branches, pendingBranch,
     branchError, relations:branchRelations(branches,conversationId(route)) }, change);
+  function rowForGraphId(graphId){
+    const index=messageIndex.get(graphId);
+    return index===undefined?null:messages[index]||null;
+  }
+  function liveSourceFor(graphId){
+    const row=rowForGraphId(graphId);
+    if(!row)return null;
+    const descriptor=sourceDescriptor(row);
+    const node=observer?.getElement?.(descriptor.nativeId);
+    // Ephemeral aliases may ONLY resolve to the same live native node.
+    return matchesLiveSource(row,node)?node:null;
+  }
+  async function resolveSource(graphId){
+    const live=liveSourceFor(graphId);
+    if(live)return live;
+    const row=rowForGraphId(graphId);
+    if(!hasDurableSource(row)||!resolveForkSource)return null;
+    const identity=sourceDescriptor(row);
+    const expectedRoute=route,seq=generation,token=lifecycle;
+    const restored=await resolveForkSource(identity.durableId);
+    if(!running||generation!==seq||lifecycle!==token||route!==expectedRoute)return null;
+    return restored?.isConnected===false?null:restored||null;
+  }
   const cacheLatest=()=>{
     const key=conversationId(route);
     const turn=turns[turns.length-1];
@@ -120,7 +144,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
         layoutStorage.readBookmarks?.(route) ?? []
       ]);
       if (seq === generation && running) {
-        positions=restored;branches=existing;pendingBranch=pending;
+        positions=Object.fromEntries(Object.entries(restored||{}).filter(([id])=>stableMessageId(id)));
+        branches=existing;pendingBranch=pending;
         bookmarks=loadedBookmarks;notify({type:'layout'});
       }
     } catch {
@@ -202,7 +227,13 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     return writeTail;
   }
   const save=()=>{
-    pendingLayout={key:route,snapshot:{...positions}};
+    // Ephemeral/candidate layout remains in-memory. Never persist the observed
+    // alias of a recycled native position, even when its syntax looks unique.
+    const persistent=Object.fromEntries(Object.entries(positions).filter(([id])=>{
+      const row=rowForGraphId(id);
+      return row?hasDurableSource(row):stableMessageId(id);
+    }));
+    pendingLayout={key:route,snapshot:persistent};
     clearTimeout(storeTimer);
     storeTimer=setTimeout(flushLayout,250);
   };
@@ -229,7 +260,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       unsubscribeBranches();unsubscribeBranches=()=>{};
       observer?.stop();observer=null;
     },
-    getSource(id) { return observer?.getElement(id) || null; },
+    getSource(id) {return liveSourceFor(id);},
+    resolveSource,
     getDiagnostics(){
       const source=observer?.getDiagnostics?.() || {};
       return {adapter:'ChatGPT rendered DOM',observerActive:running&&!!observer,
@@ -244,7 +276,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
     pauseHistory() { observer?.pauseHistory?.(); },
     markInteraction() { observer?.markInteraction?.(); },
     async toggleBookmark(id) {
-      if(!stableMessageId(id) || !turns.some(t=>t.id===id))
+      if(!hasDurableSource(rowForGraphId(id)) || !turns.some(t=>t.id===id))
         throw new Error('This turn has no durable source ID for a persistent bookmark.');
       const previous=bookmarks;
       const next=previous.includes(id)?previous.filter(x=>x!==id):[...previous,id];
@@ -260,7 +292,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const turn=turns.find(t=>t.id===turnId);
       if(!parentConversationId || !turn?.assistantId)
         throw new Error('Open an existing ChatGPT conversation with a completed assistant answer.');
-      if(!stableMessageId(turn.assistantId))
+      if(!hasDurableSource(rowForGraphId(turn.assistantId)))
         throw new Error('This response lacks a durable message ID. Native Fork remains available in ChatGPT, but gptdraw cannot safely save its lineage.');
       // One user action at a time; reserve atomic intent only after the real
       // native menu is found. Identity/route are rechecked after scrolling.
@@ -268,10 +300,8 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       if(existingIntent)throw new Error('Finish or dismiss the previous Fork before starting another.');
       observer?.pauseHistory?.();
       const forkRoute=route, token=lifecycle;
-      let node=observer?.getElement(turn.assistantId);
-      if(!node?.isConnected && resolveForkSource)
-        node=await resolveForkSource(turn.assistantId);
-      if(!node?.isConnected)
+      const node=await resolveSource(turn.assistantId);
+      if(!node || node.isConnected===false)
         throw new Error('The exact native source response could not be recovered.');
       if(!running||route!==forkRoute||lifecycle!==token)
         throw new Error('Conversation changed during Fork source recovery.');

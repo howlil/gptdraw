@@ -4,10 +4,8 @@ export function conversationId(route) {
   return typeof route === 'string' && route.startsWith('conversation:') && route.length > 13
     ? route.slice(13) : null;
 }
-export function stableMessageId(id) {
-  return typeof id === 'string' && id.length > 0 &&
-    !/^(?:user|assistant):(?:visible:|conversation-turn-\d+$)/.test(id);
-}
+import { stableMessageId } from './message-identity.mjs';
+export { stableMessageId } from './message-identity.mjs';
 export function validateAnchor(anchor) {
   if (!anchor) return null;
   if (!Number.isInteger(anchor.blockIndex) || anchor.blockIndex < 0 ||
