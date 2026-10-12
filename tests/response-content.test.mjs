@@ -31,3 +31,27 @@ test('multiple markdown bodies contribute to the same response',()=>{
   const wrapper={querySelectorAll:selector=>selector==='.markdown'?[first,second]:[],querySelector:()=>null};
   assert.equal(extractAssistantContent(wrapper).text,'First part\n\nSecond part');
 });
+
+test('media-only assistant response is flagged without fabricating text or unsafe HTML',()=>{
+  const visual={
+    innerText:'',parentElement:{closest:()=>null},
+    querySelectorAll:()=>[],
+    querySelector:selector=>selector.includes('img:not')?{tagName:'IMG'}:null
+  };
+  const wrapper={
+    querySelectorAll:selector=>selector==='.markdown'?[visual]:[],
+    querySelector:()=>null
+  };
+  const answer=extractAssistantContent(wrapper);
+  assert.equal(answer.text,'');
+  assert.deepEqual(answer.blocks,[]);
+  assert.equal(answer.hasNativeMedia,true);
+});
+test('ordinary rendered markdown is not mislabeled as unavailable native media',()=>{
+  const p=element('P','Normal answer');
+  const markdown={querySelectorAll:()=>[p],querySelector:()=>null,
+    contains:()=>false,parentElement:{closest:()=>null}};
+  const wrapper={querySelectorAll:selector=>selector==='.markdown'?[markdown]:[],
+    querySelector:()=>null};
+  assert.equal(extractAssistantContent(wrapper).hasNativeMedia,false);
+});
