@@ -77,3 +77,18 @@ test('unavailable native scroller is reported without scrolling the page',async(
   assert.equal(result,'unavailable');
   assert.deepEqual(status,['unavailable']);
 });
+
+test('aborted cooperative preflight never changes the native scroll position',async()=>{
+  const ctrl=new AbortController();
+  const scroller={scrollTop:640,scrollHeight:1300,clientHeight:400,isConnected:true};
+  let scans=0;
+  const result=await backfillHistory({
+    document:{},root:{},signal:ctrl.signal,findScroller:()=>scroller,
+    onScan:()=>{scans++;return {count:0};},
+    yieldForScan:async()=>{ctrl.abort();return false;},
+    wait:async()=>{throw Error('must not scroll during an active input wait');}
+  });
+  assert.equal(result,'cancelled');
+  assert.equal(scroller.scrollTop,640);
+  assert.equal(scans,0);
+});
