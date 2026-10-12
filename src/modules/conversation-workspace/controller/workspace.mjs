@@ -118,7 +118,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const assistant=rowForGraphId(turn.assistantId);
       return {...turn,
         canBookmark:hasDurableSource(user),
-        canFork:!!turn.answer?.trim()&&hasDurableSource(assistant)};
+        canFork:!!(turn.answer?.trim()||turn.hasNativeMedia)&&hasDurableSource(assistant)};
     });
     turnIndex = new Map();
     turns.forEach((turn,i) => {
@@ -179,7 +179,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       // accumulated in RAM. Reuse prior records for unchanged windows.
       const previous=new Map(messages.map(row=>[row.id,row]));
       const normalized=items.map(row=>{
-        const signature=row.role+'\0'+row.text+'\0'+JSON.stringify(row.blocks||[]);
+        const signature=row.role+'\0'+row.text+'\0'+JSON.stringify(row.blocks||[])+'\0'+(row.hasNativeMedia?1:0);
         const old=previous.get(row.id);
         const matches=old && contentSignatures.get(row.id)===signature;
         contentSignatures.set(row.id,signature);
@@ -209,7 +209,7 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
         lastVisibleByNative.set(alias.nativeId,item);
       }
       if(structuralTimer!==null)refresh();
-      contentSignatures.set(item.id,item.role+'\0'+item.text+'\0'+JSON.stringify(item.blocks||[]));
+      contentSignatures.set(item.id,item.role+'\0'+item.text+'\0'+JSON.stringify(item.blocks||[])+'\0'+(item.hasNativeMedia?1:0));
       const i = messageIndex.get(item.id);
       if (i === undefined) { observer?.refresh(); return; }
       messages[i] = item;
@@ -220,11 +220,13 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const updated = original.userId === item.id
         ? { ...original, prompt:item.text }
         : { ...original, answer:item.text, answerBlocks:item.blocks || [],
-          pending:!item.text.trim(),
-          canFork:!!item.text?.trim()&&hasDurableSource(item) };
+          hasNativeMedia:!!item.hasNativeMedia,
+          pending:!item.text.trim()&&!item.hasNativeMedia,
+          canFork:!!(item.text?.trim()||item.hasNativeMedia)&&hasDurableSource(item) };
       const before=original.answerBlocks||[],after=updated.answerBlocks||[];
       if (original.prompt===updated.prompt && original.answer===updated.answer &&
-          before.length===after.length && before.every((block,i)=>block===after[i]))return;
+          before.length===after.length && before.every((block,i)=>block===after[i]) &&
+          !!original.hasNativeMedia===!!updated.hasNativeMedia)return;
       turns[index] = updated;
       if(index===turns.length-1)cacheLatest();
       notify({ type:'patch', turnId:updated.id });
