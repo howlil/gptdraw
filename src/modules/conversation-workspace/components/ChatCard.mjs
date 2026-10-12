@@ -26,14 +26,19 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   row.append(question);
   const answer=document.createElement('div');answer.className='g-answer';
   answer.setAttribute('role','region');answer.setAttribute('aria-label','Assistant response');
+  const nativeMediaNotice=document.createElement('p');
+  nativeMediaNotice.className='g-native-content-notice';
+  nativeMediaNotice.textContent='This response also contains native visual content. Open it in ChatGPT to view.';
+  nativeMediaNotice.hidden=true;
   const placeholder=document.createElement('p');placeholder.className='g-placeholder';
-  body.append(row,answer,placeholder);
+  body.append(row,answer,nativeMediaNotice,placeholder);
   const footer=document.createElement('div');footer.className='g-node-footer';
+  let currentTurn=turn;
   const source=document.createElement('button');source.type='button';source.className='g-text-action';
   source.append(icon('arrow',13),document.createTextNode(' Open source'));
   source.addEventListener('click',async()=>{
     source.disabled=true;forkStatus.textContent='Locating original message…';
-    try{await onSource(turn.userId);forkStatus.textContent='';}
+    try{await onSource(currentTurn.assistantId||currentTurn.userId);forkStatus.textContent='';}
     catch(error){forkStatus.textContent=error.message;}
     finally{source.disabled=false;}
   });
@@ -112,6 +117,8 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
     compare.title=enabled?'Remove from comparison':'Select card for comparison';
   };
   card._update=(next,idx,latest)=>{
+    currentTurn=next;
+    nativeMediaNotice.hidden=!next.hasNativeMedia;
     if(Number.isInteger(idx))label.textContent=String(idx+1).padStart(2,'0');
     origin.textContent=latest?'Latest':'';
     card.classList.toggle('g-latest',!!latest);
