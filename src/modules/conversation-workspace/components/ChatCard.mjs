@@ -1,24 +1,26 @@
 import { control,icon } from '../../../components/ui/icons.mjs';
+import { createDialogueCard } from './DialogueCard.mjs';
+import { createCardComposer } from './CardComposer.mjs';
 import {readAnswerSelection,selectionForAnswer} from './selection.mjs';
 
 import { createResponseBlock } from './ResponseBlock.mjs';
 
 export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onFork,onRead,onCompare,onBookmark,onSelection,isLatest=false}) {
-  const card=document.createElement('article');
-  card.className='g-card';
+  const shell=createDialogueCard({variant:'turn'});
+  const card=shell.element;
   card.dataset.turnId=turn.id;card.tabIndex=-1;
-  const head=document.createElement('header');head.className='g-card-head';
-  const label=document.createElement('span');label.className='g-card-label';
-  const origin=document.createElement('span');origin.className='g-card-origin';
-  const actions=document.createElement('div');actions.className='g-card-actions';
+  const head=shell.head;
+  const label=shell.label;
+  const origin=shell.originLabel;
+  const actions=shell.headActions;
   const focus=control('Center card','focus',()=>onFocus(turn.id));
   const collapse=control('Collapse or expand card','back',()=> {
     const collapsed=!card.classList.contains('g-collapsed');
     card.classList.toggle('g-collapsed',collapsed);
     collapse.setAttribute('aria-label',collapsed?'Expand card':'Collapse card');
   });
-  actions.append(focus,collapse);head.append(label,origin,actions);
-  const body=document.createElement('div');body.className='g-card-body';
+  actions.append(focus,collapse);
+  const body=shell.body;
   const row=document.createElement('div');row.className='g-user-row';
   const question=document.createElement('div');question.className='g-user-bubble';
   row.append(question);
@@ -81,40 +83,19 @@ export function createChatCard(turn,{index,onSource,onFocus,onCompose,onSend,onF
   bookmark.classList.add('g-card-footer-icon');
   footer.append(source,continueButton,fork,read,compare,bookmark);
   body.append(forkStatus);
-  const composer=document.createElement('form');composer.className='g-node-composer';
-  const composerInput=document.createElement('textarea');composerInput.rows=1;
-  composerInput.maxLength=12000;composerInput.placeholder='Ask a follow-up…';
-  composerInput.setAttribute('aria-label','Follow-up prompt in ChatGPT');
-  const send=document.createElement('button');send.type='submit';send.className='g-node-send';
-  send.title='Send through ChatGPT';send.setAttribute('aria-label','Send in ChatGPT');
-  send.append(icon('navigate',15));
-  send.disabled=true;
-  composer.append(composerInput,send);
-  composerInput.addEventListener('input',()=>{
-    send.disabled=!composerInput.value.trim();
-    composer.classList.toggle('expanded',composerInput.value.includes('\n')||composerInput.scrollHeight>39);
-    composerInput.style.height='auto';
-    composerInput.style.height=Math.min(118,Math.max(24,composerInput.scrollHeight))+'px';
-  });
-  composerInput.addEventListener('keydown',event=>{
-    if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){
-      event.preventDefault();composer.requestSubmit();
+  const composer=createCardComposer({
+    placeholder:'Ask a follow-up…',
+    label:'Follow-up prompt in ChatGPT',
+    onSubmit:async(prompt,{setStatus})=>{
+      if(!card.classList.contains('g-latest'))return;
+      setStatus('Sending through ChatGPT…');
+      const response=await onSend(prompt);
+      if(response?.status==='activated')composer.clear();
+      else setStatus('Draft prepared in ChatGPT. Finish sending there.');
     }
   });
-  composer.addEventListener('submit',async event=>{
-    event.preventDefault();
-    const prompt=composerInput.value.trim();
-    if(!prompt||!card.classList.contains('g-latest'))return;
-    send.disabled=true;
-    try{
-      const response=await onSend(prompt);
-      if(response?.status==='activated')composerInput.value='';
-      else if(response?.status==='prepared')composerInput.value='';
-    }catch(error){
-      composerInput.title=error?.message||'Failed to use native ChatGPT composer';
-    }finally{send.disabled=!composerInput.value.trim();}
-  });
-  card.append(head,body,footer,composer);
+  const composerInput=composer.input;
+  card.append(footer,composer.element);
   let blocks=[],lastAnswer='',lastBlockRefs=[];
   card._setBookmark=enabled=>{
     bookmark.classList.toggle('g-is-bookmarked',!!enabled);
