@@ -1,5 +1,6 @@
 import { backfillHistory, yieldForHistory } from './history.mjs';
 import { extractAssistantContent } from './response-content.mjs';
+import { stableMessageId } from '../core/message-identity.mjs';
 
 // Read only rendered ChatGPT message DOM. Never reach into React state,
 // cookies, hidden endpoints or model context. Site markup varies by cohort.
@@ -30,15 +31,24 @@ function assistantFromTurn(node,options={}) {
   return surrounding.text?surrounding:own;
 }
 function idOf(node, role, ordinal) {
-  const inside = node.querySelector?.(ROLE_SELECTOR);
-  const id = node.getAttribute?.('data-message-id')
-    || inside?.getAttribute?.('data-message-id')
-    || node.getAttribute?.('data-turn-id')
-    || node.getAttribute?.('data-turn-key')
-    || inside?.getAttribute?.('data-turn-key')
-    || node.getAttribute?.('data-testid')
-    || 'visible:' + ordinal;
-  return role + ':' + id;
+  const inside=node.querySelector?.(ROLE_SELECTOR);
+  const messageId=node.getAttribute?.('data-message-id')||
+    inside?.getAttribute?.('data-message-id');
+  if(messageId){
+    const id=role+':'+messageId;
+    return {id,identity:stableMessageId(id)?'stable':'ephemeral',
+      durableId:stableMessageId(id)?id:null};
+  }
+  // data-turn-id and data-turn-key can identify a rendered grouping but are
+  // not proof of a durable native message identifier.
+  const turnId=node.getAttribute?.('data-turn-id');
+  if(turnId)return {id:role+':'+turnId,identity:'candidate',durableId:null};
+  const turnKey=node.getAttribute?.('data-turn-key')||
+    inside?.getAttribute?.('data-turn-key');
+  if(turnKey)return {id:role+':turn-key:'+turnKey,identity:'candidate',durableId:null};
+  const testId=node.getAttribute?.('data-testid');
+  return {id:role+':'+(testId||'visible:'+ordinal),
+    identity:'ephemeral',durableId:null};
 }
 
 export function findChatMain(doc) {
@@ -82,13 +92,14 @@ export function collectMessages(root,options={}) {
   for (const node of candidates) {
     const role = roleOf(node);
     if (!role) continue;
-    const id = idOf(node,role,result.length);
+    const identity=idOf(node,role,result.length);
+    const id=identity.id;
     if (seen.has(id)) continue;
     seen.add(id);
     const extracted=role==='assistant'?assistantFromTurn(node,options):null;
     const source=extracted?.source || readSource(node,role);
     result.push({id,role,text:extracted?.text ?? (source.textContent || '').trim(),
-      blocks:extracted?.blocks || [],identity:/:(?:conversation-turn-\d+|visible:)/.test(id)?'ephemeral':id.includes('turn-key:')?'candidate':'stable',element:node,source});
+      blocks:extracted?.blocks || [],identity:identity.identity,durableId:identity.durableId,element:node,source});
   }
   if (!result.some(row => row.role === 'user')) {
     // Some renderer variants put both roles under a stable user turn key,
@@ -102,7 +113,7 @@ export function collectMessages(root,options={}) {
       if (!user) continue;
       grouped.push({
         id:'user:turn-key:'+key,role:'user',
-        text:(user.textContent||'').trim(),identity:'candidate',element:user,source:user
+        text:(user.textContent||'').trim(),identity:'candidate',durableId:null,element:user,source:user
       });
       const marker = group.querySelector?.('[data-conversation-role="assistant"],[data-chatgpt-agent-turn-start]');
       if (marker) {
@@ -115,7 +126,7 @@ export function collectMessages(root,options={}) {
         const answer=containerAnswer.text?containerAnswer:extractAssistantContent(source,options);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
-          text:answer.text,blocks:answer.blocks,identity:'candidate',element:source,source:answer.source
+          text:answer.text,blocks:answer.blocks,identity:'candidate',durableId:null,element:source,source:answer.source
         });
       }
     }
