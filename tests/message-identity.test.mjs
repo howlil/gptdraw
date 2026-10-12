@@ -109,3 +109,29 @@ test('candidate native rows are navigable live but never allowed into persistent
   await assert.rejects(ctrl.toggleBookmark(snapshot.turns[0].id),/durable/);
   ctrl.stop();
 });
+
+test('durable source recovery uses the native ID and invalidates stale route results',async()=>{
+  let callbacks,release,seenId,state;
+  const ctrl=createWorkspaceController({
+    pathname:()=>'/c/first',
+    layoutStorage:{read:async()=>({}),write:async()=>{}},
+    resolveForkSource:id=>{seenId=id;return new Promise(resolve=>{release=resolve;});},
+    observe:cb=>{callbacks=cb;return{start(){cb.onSnapshot([
+      {id:'user:msg-1',role:'user',identity:'stable',durableId:'user:msg-1',text:'Question'}]);},
+      stop(){},getElement:()=>null};},
+    onUpdate:s=>{state=s;}
+  });
+  await ctrl.start();
+  const task=ctrl.resolveSource(state.turns[0].id);
+  assert.equal(seenId,'user:msg-1');
+  callbacks.onRoute('/c/second');
+  release({isConnected:true});
+  assert.equal(await task,null,'an old recovery result must never cross routes');
+  ctrl.stop();
+});
+test('legacy ephemeral confirmed branches cannot be rendered as real lineage',async()=>{
+  const {buildBranchWorkspace}=await import('../src/modules/conversation-workspace/core/branch-workspace.mjs');
+  const records=[{id:'old',status:'confirmed',parentConversationId:'p',childConversationId:'c',
+    source:{messageId:'assistant:observed:1'}}];
+  assert.equal(buildBranchWorkspace(records,'conversation:c').edges.length,0);
+});
