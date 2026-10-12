@@ -1,4 +1,5 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
+import { deriveWorkspaceMode } from './core/view-mode.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
 import { createDiagnosticsPanel } from './components/DiagnosticsPanel.mjs';
 
@@ -97,7 +98,8 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
         historyLabel.textContent='Scanning history · '+Math.floor(state.history.count/2)+' turns';
       if(state.history?.unresolved>0)historyLabel.textContent+=' · '+state.history.unresolved+' unlinked history pages';
       historyLabel.hidden=!historyLabel.textContent;
-      const populated=state.turns.length>0;
+      const mode=deriveWorkspaceMode(state);
+      const populated=!['new','loading','unavailable'].includes(mode);
       search.hidden=state.turns.length<2;
       outlineButton.hidden=state.turns.length<2;
       count.hidden=!populated;
@@ -112,7 +114,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
         : pending?'Fork requested. Finish creating the new chat in ChatGPT.':'';
       confirm.hidden=!canConfirm;
       branchError.textContent=state.branchError || '';
-      if(change?.type==='history')return;
+      if(change?.type==='history' && populated)return;
       if(change?.type!=='patch' && change?.type!=='position')
         count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns')+' loaded';
       canvas.reconcile(state,change);
