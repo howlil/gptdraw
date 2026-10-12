@@ -8,8 +8,12 @@ function column(turn,label,onSelection){
   const heading=document.createElement('h3');heading.textContent=label;
   const prompt=document.createElement('div');prompt.className='g-inspect-prompt';
   const response=document.createElement('div');response.className='g-inspect-response';
-  element.append(heading,prompt,response);
-  const state={element,prompt,response,blocks:[],id:turn.id};
+  const nativeNotice=document.createElement('p');
+  nativeNotice.className='g-native-content-notice';
+  nativeNotice.textContent='Native visual or interactive content is available in ChatGPT.';
+  nativeNotice.hidden=true;
+  element.append(heading,prompt,response,nativeNotice);
+  const state={element,prompt,response,nativeNotice,blocks:[],id:turn.id};
   const announce=()=>{
     const selection=selectionForAnswer(response);
     const quote=readAnswerSelection(response,selection);
@@ -28,8 +32,9 @@ function selectionInside(node){
 }
 function patchColumn(state,turn) {
   if(state.prompt.textContent!==turn.prompt)state.prompt.textContent=turn.prompt||'';
+  state.nativeNotice.hidden=!turn.hasNativeMedia;
   const next=turn.answerBlocks?.length?turn.answerBlocks:
-    [{kind:'paragraph',text:turn.answer||'No assistant text rendered yet.'}];
+    turn.hasNativeMedia?[]:[{kind:'paragraph',text:turn.answer||'No assistant text rendered yet.'}];
   // If the user is actively selecting/copying from the response, defer the
   // patch until selection ends, instead of destroying the selection range.
   if(selectionInside(state.response)){state.pending=turn;return;}
