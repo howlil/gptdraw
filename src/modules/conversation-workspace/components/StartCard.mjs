@@ -22,11 +22,10 @@ export function createStartCard(onStart) {
     onSubmit:async(draft,{setStatus})=>{
       setStatus('Sending through ChatGPT…');
       const result=await onStart(draft);
-      if(result?.status==='activated'){
-        setStatus('Waiting for the conversation to appear…');
-      }else{
-        setStatus('Draft prepared in ChatGPT. Finish sending there.');
-      }
+      if(result?.status==='observed')composer.clear();
+      else if(result?.status==='uncertain')
+        setStatus('Send not confirmed. Check ChatGPT before trying again; your draft is preserved.');
+      else setStatus('Draft prepared in ChatGPT. Finish sending there.');
     }
   });
   composer.element.className+=' g-start-composer';
