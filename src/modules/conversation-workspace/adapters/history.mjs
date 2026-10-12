@@ -37,20 +37,39 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export async function yieldForHistory(doc,signal,{
   isInteracting=()=>false,wait=delay
 }={}) {
-  while(!signal?.aborted &&
-      (doc?.visibilityState==='hidden' || isInteracting())){
-    await wait(100);
-  }
-  if(signal?.aborted)return false;
   const view=doc?.defaultView;
-  if(typeof view?.requestIdleCallback==='function'){
-    await new Promise(resolve=>{
-      const handle=view.requestIdleCallback(resolve,{timeout:180});
-      if(signal?.aborted && typeof view.cancelIdleCallback==='function')
-        view.cancelIdleCallback(handle);
-    });
+  for(;;) {
+    if(signal?.aborted)return false;
+    if(doc?.visibilityState==='hidden' || isInteracting()){
+      await wait(100);
+      continue;
+    }
+    if(typeof view?.requestIdleCallback==='function'){
+      await new Promise(resolve=>{
+        let finished=false,handle;
+        const finish=()=>{
+          if(finished)return;
+          finished=true;
+          signal?.removeEventListener?.('abort',onAbort);
+          resolve();
+        };
+        const onAbort=()=>{
+          view.cancelIdleCallback?.(handle);
+          finish();
+        };
+        signal?.addEventListener?.('abort',onAbort,{once:true});
+        handle=view.requestIdleCallback(finish,{timeout:180});
+        if(signal?.aborted)onAbort();
+      });
+    } else {
+      // The frame's remaining time belongs to ChatGPT, not our history scan.
+      await delay(0);
+    }
+    // Input/visibility may change while an idle callback is queued.
+    if(!signal?.aborted &&
+        (doc?.visibilityState==='hidden'||isInteracting()))continue;
+    return !signal?.aborted;
   }
-  return !signal?.aborted;
 }
 export async function backfillHistory({
   document,root,onScan,onStatus=()=>{},signal,
@@ -70,6 +89,11 @@ export async function backfillHistory({
     // misses virtualization sentinels, so cross the scrollport in increments.
     for(;steps<maxSteps;steps++){
       if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+      // Do not begin a native scroll while user input or a hidden tab holds
+      // priority. A second checkpoint after the load wait prevents stale scans.
+      if(!(await yieldForScan()) || abort()){
+        outcome=signal?.aborted?'cancelled':'unavailable';break;
+      }
       const before=scroller.scrollTop;
       const step=Math.max(220,Math.min(scroller.clientHeight*.82,900));
       scroller.scrollTop=Math.max(0,before-step);
@@ -95,6 +119,9 @@ export async function backfillHistory({
       onStatus({status:'loading',phase:'down',steps,count});
       for(;steps<maxSteps;steps++){
         if(abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
+        if(!(await yieldForScan()) || abort()){
+          outcome=signal?.aborted?'cancelled':'unavailable';break;
+        }
         const max=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
         const before=scroller.scrollTop;
         scroller.scrollTop=Math.min(max,before+Math.max(220,Math.min(scroller.clientHeight*.82,900)));
