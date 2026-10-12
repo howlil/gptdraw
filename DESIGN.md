@@ -14,7 +14,7 @@ One graph card = one user turn + its following assistant response (which may sti
 - **Fonts:** system UI (Apple SF Pro / Windows Segoe UI), mono SF Mono / Consolas / Liberation Mono / Menlo. No bundled fonts.
 - **Text sizes/line height:** 12/16 meta, 14/20 UI, 16/24 body, 18/24 title, 20/28 large title, 28/34 page title, 36/40 display. Weights 400/500/600.
 - **Spacing scale:** 4/8/12/16/20/24/32px. No arbitrary page rhythm values.
-- **Colors — black/white only:** light background `#FAFAFA`, white card `#FFFFFF`, ink/accent `#171717`, muted `#737373`, border `#E5E5E5`, user bubble `#F0F0F0`. Dark background `#0A0A0A`, surface `#151515`, ink/accent `#FAFAFA`, border `#303030`, user bubble `#252525`. No cobalt/lavender/purple/blue styling. Follow ChatGPT's explicit light/dark class if available, else OS preference.
+- **Colors — black/white only:** light background `#FAFAF9`, white card `#FFFFFF`, ink/accent `#1B1B1B`, muted `#81817F`, border `#E8E8E5`, user bubble `#F2F2F0`. Dark background `#121212`, chrome `#191919`, card `#202020`, ink/accent `#F2F1EF`, border `#373737`, user bubble `#303030`. No cobalt/lavender/purple/blue styling. Follow ChatGPT's explicit light/dark class if available, else OS preference.
 - **Controls:** compact rounded pills and SVG icons; **auto-open on ChatGPT navigation**, with Chrome toolbar as explicit toggle and **Back to ChatGPT** as a real reversible exit. No floating launcher/button inside ChatGPT. Canvas zoom controls remain visible *inside* the main area.
 
 The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CSS v4 at build time**, using reusable component CSS and a Shadow DOM-specific variable scope. Tailwind does not ship as a runtime compiler. The host ChatGPT CSS must not style extension UI, and extension CSS must not style host content.
@@ -38,7 +38,7 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 
 ## One entry point and truthful loading
 
-- New-chat and existing-chat loading states must reuse the same Dialogue card typography, compact header and composer geometry. Avoid a separate "legacy Start Card" visual language.
+- New-chat, existing-chat loading, actual turn and confirmed branch metadata **share one native DialogueCard shell** (366px desktop, 350px compact, 320px small screens, clamped to viewport width), 14px radius, 38px header, 15px body padding and neutral border/shadow. Entry and latest real turn reuse one CardComposer with 11px radius, Enter/Shift+Enter, IME-safe submission and truthful native draft handoff. Dynamic card height is intentional. Avoid a separate "legacy Start Card" visual language.
 - Existing conversations should begin native DOM observation immediately, without waiting for Chrome storage/IndexedDB; refresh is a fallback, not a required entry action.
 - Distinguish **turns loaded in session** from **card DOM elements currently mounted** by viewport virtualization.
 - During progressive older-history scans, positional native IDs are not trusted as stable. Display directional windows from real native scrolling but omit sequential connectors at unverified discontinuities. Do not imply all account history has been recovered.
@@ -57,7 +57,7 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 ## Branch navigation and inspection contract
 
 - Show the **entire confirmed connected branch family** (parent, sibling, descendants) with dashed native-lineage edges. Unknown branches get an explicit **Metadata only · Open to load** label, never a fabricated transcript.
-- Provide a calm 196×114 desktop / compact mobile **clickable SVG minimap** and a one-action **Branches** focus control. The minimap must not rerender message contents during pan/zoom.
+- Provide a calm 196×114 desktop / compact mobile **clickable SVG minimap**, visible only when at least two navigable graph nodes overflow the readable viewport, and a one-action **Branches** focus control. The minimap must not rerender message contents during pan/zoom.
 - Provide **Focus Reading** on the selected card and **Compare** on two actual loaded turns using the existing `ResponseBlock` renderer; side-by-side columns collapse to stacked panels on narrow screens. Do not invent citations or diff insights.
 - For linked conversations, show **Compare loaded answers** only when both answers have really been observed in the same browser tab. Cache at most eight last answers in volatile memory, never Chrome Storage, and disclose that reload loses comparisons.
 - **Bookmark** only stable turn IDs per native conversation; never save prompts, replies or the selected quote. The outline marks bookmarked cards.
@@ -74,7 +74,7 @@ The implemented token owner is `src/app/workspace.css`. It imports **Tailwind CS
 
 ## Composer behavior
 
-**When no turns are visible, show one Start Card in the canvas**, not a separate modal or `0 turns` error page. It contains a real textarea and Send action, visually consistent with Dialogue cards. The Send action uses the **native ChatGPT composer and visible Send button** through a user-initiated DOM bridge. If no Send button is usable, hand off the prepared draft to the native composer; never fabricate a model response or silently discard the text. Existing native drafts must never be overwritten.
+**When no turns are visible, center one shared-shell Start Card at readable 100% zoom in the canvas**, not a separate modal or `0 turns` error page. It contains a real textarea and Send action, visually consistent with Dialogue cards. The Send action uses the **native ChatGPT composer and visible Send button** through a user-initiated DOM bridge. When new chat has zero turns, hide graph navigation/search/minimap, retain native return and overflow diagnostics. Distinguish a loading existing conversation from an actual new-chat route. If no Send button is usable, hand off the prepared draft to the native composer; never fabricate a model response or silently discard the text. Existing native drafts must never be overwritten.
 
 For existing turns, the **Compose in ChatGPT** action returns focus to the native editor. A fully featured adaptive gptdraw composer inside each active graph card is **future work**, not silently enabled; native model picker, microphone and attachments remain owned by ChatGPT.
 
@@ -97,3 +97,13 @@ Any adoption of upstream Beautiful UI source must preserve license, document dep
 - Prefer `textContent` over injecting raw ChatGPT HTML. Never move native React-owned messages or modify hidden app state.
 
 If a design change alters product behavior, update this contract intentionally before shipping.
+
+## Design V2 acceptance — Beautiful UI-inspired, not a demo transplant
+
+- The accepted user-supplied interactive HTML prototype defines the *visual target*, not the source of messages or product route tabs. Do not add fake assistant messages, mock tabs, model picker or theme toggle to the real extension.
+- Shared components are `components/DialogueCard.mjs` (header/body slots) and `components/CardComposer.mjs` (real native send bridge owner remains the callers). Keep stable ChatCard DOM identity and incremental ResponseBlock updates during streaming.
+- Confirmed branch nodes use the same responsive DialogueCard shell, with dashed metadata border and Open/Compare actions. Pending native Fork is never rendered as confirmed lineage, and unobserved branch transcript text is never invented.
+- Canvas geometry, branch spacing, minimap projection and edge anchors must use responsive card widths; keep viewport motion transform-only on camera gestures.
+- Workspace toolbar only exposes Find/Outline with populated graph; Sync and Compatibility Diagnostics live under More workspace tools. Back to ChatGPT is the single explicit return control.
+- Dark/light continues following the native host; new off-white semantic tokens intentionally supersede previous pure grayscale light and dark palette.
+- Verify via `npm run check`, then `docs/CHROME_SMOKE_TEST.md` in signed-in Chrome. Automated tests alone cannot prove live native compatibility.
