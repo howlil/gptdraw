@@ -1,6 +1,6 @@
 // Graph identity and native provenance are different claims.
 // Only an explicit native message identifier can authorize durable actions.
-const TRANSIENT=/^(?:user|assistant):(?:observed:\d+|visible:\d+|conversation-turn-\d+|turn-key:|data-turn-key:)/;
+const TRANSIENT=/^(?:user|assistant):(?:observed:|visible:|conversation-turn-\d+|turn-key:|data-turn-key:)/;
 export function stableMessageId(id) {
   return typeof id==='string' && id.length>0 && id.length<200 &&
     !TRANSIENT.test(id) && !/\s/.test(id);
@@ -21,7 +21,7 @@ export function sourceDescriptor(row) {
 }
 export function matchesLiveSource(row,nativeNode) {
   if(!row || !nativeNode || nativeNode.isConnected===false)return false;
-  if(row.identity!=='ephemeral')return true;
+  if(row.identity!=='ephemeral' && row.identity!=='candidate')return true;
   // A position-based native id can be recycled. DOM element identity and
   // current text must corroborate the same visible message.
   if(row.element!==nativeNode || row.source?.isConnected===false)return false;
