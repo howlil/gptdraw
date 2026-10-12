@@ -45,7 +45,7 @@ function idOf(node, role, ordinal) {
   if(turnId)return {id:role+':'+turnId,identity:'candidate',durableId:null};
   const turnKey=node.getAttribute?.('data-turn-key')||
     inside?.getAttribute?.('data-turn-key');
-  if(turnKey)return {id:role+':turn-key:'+turnKey,identity:'candidate',durableId:null};
+  if(turnKey)return {id:role+':'+turnKey,identity:'candidate',durableId:null};
   const testId=node.getAttribute?.('data-testid');
   return {id:role+':'+(testId||'visible:'+ordinal),
     identity:'ephemeral',durableId:null};
