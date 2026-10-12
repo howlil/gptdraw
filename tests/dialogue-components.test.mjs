@@ -15,6 +15,7 @@ function withDOM(fn) {
       this.classes=new Set();this.className='';
     }
     append(...children){this.children.push(...children);}
+    get lastChild(){return this.children.at(-1);}
     appendChild(child){this.append(child);}
     setAttribute(k,v){this.attributes[k]=v;}
     addEventListener(name,cb){this.events[name]=cb;}
