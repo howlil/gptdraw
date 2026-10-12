@@ -1,6 +1,8 @@
 import { createChatCard } from './ChatCard.mjs';
 import { quoteAnchor } from '../core/branch.mjs';
 import { createStartCard } from './StartCard.mjs';
+import { createDialogueCard } from './DialogueCard.mjs';
+import {centerEntryCamera,shouldShowMinimap} from '../core/view-mode.mjs';
 import { createMinimap } from './Minimap.mjs';
 import { createInspectionPanel } from './InspectionPanel.mjs';
 import { selectCompareId, comparisonTurns } from '../core/compare.mjs';
@@ -178,6 +180,21 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
   let autoFit = true, edgesQueued = false, cameraQueued=false, previousRoute = null, initialFocusPending = true;
+  let emptyCameraLocked=true, minimapPoints=[];
+  const responsiveCardWidth=()=>Math.max(240,Math.min(viewport.clientWidth-24,
+    viewport.clientWidth<=430?320:viewport.clientWidth<=760?350:366));
+  function centerEntry(){
+    if(!viewport.clientWidth||!emptyCameraLocked||turns.length)return;
+    startCard.element.style.width=responsiveCardWidth()+'px';
+    const camera=centerEntryCamera(viewport.clientWidth,viewport.clientHeight,
+      startCard.element.offsetWidth||responsiveCardWidth(),startCard.element.offsetHeight||235);
+    scale=camera.scale;panX=camera.panX;panY=camera.panY;
+    renderTransform();
+  }
+  function refreshMinimapVisibility(){
+    minimap.element.hidden=!shouldShowMinimap(minimapPoints,{
+      panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
+  }
   let stablePositions = new Map();
   const cards = new Map();
   const branchNodes=new Map();
@@ -215,6 +232,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       stage.style.transform='translate('+panX+'px,'+panY+'px) scale('+scale+')';
       zoomLabel.textContent=Math.round(scale*100)+'%';
       minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
+      refreshMinimapVisibility();
       scheduleVisible();
       lastCameraFrameMs=Math.round((performance.now()-started)*100)/100;
       maxCameraFrameMs=Math.max(maxCameraFrameMs,lastCameraFrameMs);
@@ -269,6 +287,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         card._lastTurn=turn;card._lastIndex=index;card._lastLatest=index===turns.length-1;
       }
       card._turnIndex=index;
+      card.style.width=responsiveCardWidth()+'px';
       card._setBookmark(bookmarks.includes(id));
       card._setCompare(selectedCompare.includes(id));
       if(!dragging || dragging.id!==id){
@@ -292,8 +311,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       const previous=turns[i-1],first=cards.get(previous.id);
       if(!first || turns[i].breakBefore)continue;
       const a=point(previous,i-1),b=point(turns[i],i);
-      const x1=a.x+(measuredBounds.get(previous.id)?.width||366),y1=a.y+43;
-      const x2=b.x,y2=b.y+43;
+      const x1=a.x+(measuredBounds.get(previous.id)?.width||responsiveCardWidth()),y1=a.y+19;
+      const x2=b.x,y2=b.y+19;
       const bend=Math.max(60,Math.abs(x2-x1)*.42);
       geometry.set('seq:'+previous.id+':'+id,{
         d:'M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2,
@@ -303,7 +322,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     for(const edge of branchEdges){
       const a=branchPositions.get(edge.from),b=branchPositions.get(edge.to);
       if(!a||!b)continue;
-      const x1=a.x+230,y1=a.y+39,x2=b.x,y2=b.y+39;
+      const x1=a.x+(a.w||responsiveCardWidth()),y1=a.y+19,x2=b.x,y2=b.y+19;
       const bend=Math.max(50,(x2-x1)*.45);
       geometry.set('branch:'+edge.id,{
         d:'M'+x1+' '+y1+' C'+(x1+bend)+' '+y1+' '+(x2-bend)+' '+y2+' '+x2+' '+y2,
@@ -336,8 +355,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   function renderBranchNodes(records,route,previews={}) {
     const tree=buildBranchWorkspace(records,route);
     const last=turns[turns.length-1];
-    const base=last?point(last,turns.length-1):{x:130,y:140};
-    const origin={x:base.x+535,y:base.y+210};
+    const base=last?point(last,turns.length-1):{x:0,y:0};
+    const origin={x:base.x+535,y:base.y+240};
     const entries=tree.nodes.length>1?tree.nodes:[];
     const active=new Set(entries.map(n=>n.id));
     branchCurrent=entries.find(n=>n.isCurrent)?.id||null;
@@ -348,14 +367,19 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     branchPositions=new Map();
     for(const [index,entry] of entries.entries()) {
       const x=origin.x+entry.x,y=origin.y+entry.y;
-      branchPositions.set(entry.id,{x,y,branch:true,w:230,h:90});
       let node=branchNodes.get(entry.id);
       if(!node) {
-        node=document.createElement('div');node.className='g-branch-node';
+        const shell=createDialogueCard({variant:'branch',number:'↳',origin:'Confirmed branch'});
+        node=shell.element;
+        node.className+=' g-branch-node';
+        node._shell=shell;
         branchNodes.set(entry.id,node);stage.append(node);
       }
+      node.style.width=responsiveCardWidth()+'px';
+      node._shell.setHeader('↳',entry.isCurrent?'Current branch':'Confirmed branch');
       node.classList.toggle('g-current-branch',entry.isCurrent);
-      node.replaceChildren();
+      node._shell.body.replaceChildren();
+      branchPositions.set(entry.id,{x,y,branch:true,w:responsiveCardWidth(),h:node.offsetHeight||155});
       const open=document.createElement('button');
       open.type='button';open.className='g-branch-open';
       const title=document.createElement('strong');
@@ -366,41 +390,45 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         previews[entry.id]?'Latest answer available for comparison':'Metadata only · Open to load';
       open.append(title,caption);
       open.addEventListener('click',()=>entry.isCurrent?focusBranches():onOpenConversation(entry.id));
-      node.append(open);
+      node._shell.body.append(open);
       const current=previews[tree.current],other=previews[entry.id];
       if(!entry.isCurrent && current?.answer && other?.answer) {
         const compare=document.createElement('button');compare.type='button';
         compare.className='g-branch-compare';
         compare.textContent='Compare loaded answers';
         compare.addEventListener('click',()=>inspector.openCompare(current,other));
-        node.append(compare);
+        node._shell.body.append(compare);
       }
       node.style.left=x+'px';node.style.top=y+'px';
     }
     branchesButton.disabled=entries.length===0;
+    branchesButton.hidden=entries.length===0;
   }
   function focusBranches(){
     const current=branchPositions.get(branchCurrent)
       ||branchPositions.values().next().value;
     if(!current)return;
     scale=1;autoFit=false;
-    panX=viewport.clientWidth/2-(current.x+115);
-    panY=viewport.clientHeight/2-(current.y+39);
+    panX=viewport.clientWidth/2-(current.x+(current.w||responsiveCardWidth())/2);
+    panY=viewport.clientHeight/2-(current.y+78);
     renderTransform();
   }
   function updateMinimap(){
-    const points=turns.map((turn,i)=>({...point(turn,i),w:366,h:230}));
-    points.push(...branchPositions.values());
-    minimap.setPoints(points.length?points:[{x:130,y:140,w:366,h:230}]);
+    minimapPoints=turns.map((turn,i)=>({...point(turn,i),
+      w:measuredBounds.get(turn.id)?.width||responsiveCardWidth(),
+      h:measuredBounds.get(turn.id)?.height||230}));
+    minimapPoints.push(...branchPositions.values());
+    minimap.setPoints(minimapPoints);
     minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
+    refreshMinimapVisibility();
   }
   const queueEdges = () => { if (!edgesQueued) { edgesQueued=true; requestAnimationFrame(drawEdges); } };
   const fit = () => {
     const bounds = turns.map((turn,i)=>{
-      const p=point(turn,i); return { x:p.x,y:p.y,w:cards.get(turn.id)?.offsetWidth||420,h:cards.get(turn.id)?.offsetHeight||260 };
+      const p=point(turn,i); return { x:p.x,y:p.y,w:cards.get(turn.id)?.offsetWidth||responsiveCardWidth(),h:cards.get(turn.id)?.offsetHeight||260 };
     });
-    if (!bounds.length) bounds.push({x:130,y:140,w:startCard.element.offsetWidth||420,h:startCard.element.offsetHeight||260});
-    for(const [key,p] of branchPositions)bounds.push({x:p.x,y:p.y,w:branchNodes.get(key)?.offsetWidth||230,h:branchNodes.get(key)?.offsetHeight||78});
+    if (!bounds.length) bounds.push({x:0,y:0,w:startCard.element.offsetWidth||responsiveCardWidth(),h:startCard.element.offsetHeight||260});
+    for(const [key,p] of branchPositions)bounds.push({x:p.x,y:p.y,w:branchNodes.get(key)?.offsetWidth||responsiveCardWidth(),h:branchNodes.get(key)?.offsetHeight||78});
     const l=Math.min(...bounds.map(x=>x.x)),t=Math.min(...bounds.map(x=>x.y));
     const r=Math.max(...bounds.map(x=>x.x+x.w)),b=Math.max(...bounds.map(x=>x.y+x.h));
     if(viewport.clientWidth < 600) {
@@ -419,7 +447,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const zoom = (value,cx=viewport.clientWidth/2,cy=viewport.clientHeight/2)=>{
     const next=clamp(value,.4,1.5);
     panX=cx-(cx-panX)*next/scale;panY=cy-(cy-panY)*next/scale;
-    scale=next;autoFit=false;renderTransform();
+    scale=next;autoFit=false;emptyCameraLocked=false;renderTransform();
   };
   viewport.addEventListener('wheel',event=>{
     if (!event.ctrlKey && !event.metaKey) return;
@@ -442,7 +470,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     } else if (event.target===viewport||event.target===stage||event.target===edgeLayer) {
       dragging={kind:'pan',x:panX,y:panY,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
     }
-    if(dragging){hideSelection();onActivity();viewport.setPointerCapture(event.pointerId);}
+    if(dragging){if(dragging.kind==='pan')emptyCameraLocked=false;
+      hideSelection();onActivity();viewport.setPointerCapture(event.pointerId);}
   });
   viewport.addEventListener('pointermove',event=>{
     if(!dragging || event.pointerId!==dragging.pointerId)return;
@@ -478,14 +507,28 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     renderTransform();syncVisibleCards();
     requestAnimationFrame(()=>cards.get(id)?.focus({preventScroll:true}));
   }
+  const viewportResize=typeof ResizeObserver==='function'?new ResizeObserver(()=>{
+    startCard.element.style.width=responsiveCardWidth()+'px';
+    for(const card of cards.values())card.style.width=responsiveCardWidth()+'px';
+    for(const node of branchNodes.values())node.style.width=responsiveCardWidth()+'px';
+    for(const position of branchPositions.values())position.w=responsiveCardWidth();
+    rebuildIndex();updateMinimap();queueEdges();
+    if(!turns.length)centerEntry();
+    else renderTransform();
+  }):null;
+  viewportResize?.observe(viewport);
   return {
     element:viewport,
     reconcile(state, change){
       const routeChanged=previousRoute!==state.route;
-      if(routeChanged){hideSelection();previousRoute=state.route;initialFocusPending=true;stablePositions.clear();
+      if(routeChanged){hideSelection();previousRoute=state.route;initialFocusPending=true;
+        emptyCameraLocked=true;stablePositions.clear();
         selectedCompare=[];focusedId=null;inspector.hide();}
       positions=state.positions;turns=state.turns;bookmarks=state.bookmarks||[];
       firstButton.disabled=!turns.length;latestButton.disabled=!turns.length;
+      firstButton.hidden=turns.length<2;latestButton.hidden=turns.length<2;
+      controls.hidden=turns.length===0;
+      startCard.element.style.width=responsiveCardWidth()+'px';
       if(routeChanged){turnById.clear();turnIndexById.clear();searchCache.clear();outlineLimit=60;}
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
@@ -528,10 +571,13 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       startCard.element.hidden = turns.length !== 0;
       if(!turns.length)startCard.setRoute(state.route,state.history?.status);
       queueEdges();
-      if(initialFocusPending && (turns.length>0 || state.history?.status==='unavailable') && viewport.clientWidth){
+      if(!turns.length && viewport.clientWidth) {
         initialFocusPending=false;
+        requestAnimationFrame(centerEntry);
+      } else if(initialFocusPending && turns.length && viewport.clientWidth) {
+        initialFocusPending=false;emptyCameraLocked=false;
         const latest=turns[turns.length-1];
-        requestAnimationFrame(()=>latest?focus(latest.id):fit());
+        requestAnimationFrame(()=>focus(latest.id));
       }
     },
     fit,focus,
