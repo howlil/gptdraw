@@ -90,6 +90,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     // Only show for a visible range within the canvas/Reading panel.
     if(rect.bottom<bounds.top||rect.top>bounds.bottom){hideSelection();return;}
     activeSelection=quote;
+    const eligible=turnById.get(quote.turnId)?.canFork!==false;
+    forkSelection.disabled=!eligible;
+    forkSelection.title=eligible
+      ?'Branch from this answer using the native ChatGPT action'
+      :'Unavailable: the response has no durable native source ID';
     const toolbarWidth=154;
     const x=Math.min(Math.max(10,(rect.left+rect.right)/2-bounds.left-toolbarWidth/2),
       Math.max(10,bounds.width-toolbarWidth-10));
@@ -100,6 +105,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   }
   async function performSelection(action){
     const quote=activeSelection;if(!quote)return;
+    if(action==='fork'&&forkSelection.disabled)return;
     askSelection.disabled=true;forkSelection.disabled=true;
     selectionStatus.hidden=false;
     selectionStatus.textContent=action==='ask'?'Preparing ChatGPT draft…':'Opening native Branch…';
@@ -116,7 +122,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     }catch(error){
       selectionStatus.hidden=false;
       selectionStatus.textContent=error?.message||'Action unavailable.';
-    }finally{askSelection.disabled=false;forkSelection.disabled=false;}
+    }finally{askSelection.disabled=false;
+      forkSelection.disabled=turnById.get(quote.turnId)?.canFork===false;}
   }
   askSelection.addEventListener('click',()=>performSelection('ask'));
   forkSelection.addEventListener('click',()=>performSelection('fork'));

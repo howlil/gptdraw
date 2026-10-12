@@ -112,8 +112,14 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
   };
   const refresh = () => {
     if(structuralTimer!==null){clearTimeout(structuralTimer);structuralTimer=null;}
-    turns = pairMessages(messages);
     messageIndex = new Map(messages.map((m,i) => [m.id,i]));
+    turns = pairMessages(messages).map(turn=>{
+      const user=rowForGraphId(turn.userId);
+      const assistant=rowForGraphId(turn.assistantId);
+      return {...turn,
+        canBookmark:hasDurableSource(user),
+        canFork:!!turn.answer?.trim()&&hasDurableSource(assistant)};
+    });
     turnIndex = new Map();
     turns.forEach((turn,i) => {
       turnIndex.set(turn.userId,i);
@@ -213,7 +219,9 @@ export function createWorkspaceController({ observe, layoutStorage, branchStorag
       const original = turns[index];
       const updated = original.userId === item.id
         ? { ...original, prompt:item.text }
-        : { ...original, answer:item.text, answerBlocks:item.blocks || [], pending:!item.text.trim() };
+        : { ...original, answer:item.text, answerBlocks:item.blocks || [],
+          pending:!item.text.trim(),
+          canFork:!!item.text?.trim()&&hasDurableSource(item) };
       const before=original.answerBlocks||[],after=updated.answerBlocks||[];
       if (original.prompt===updated.prompt && original.answer===updated.answer &&
           before.length===after.length && before.every((block,i)=>block===after[i]))return;

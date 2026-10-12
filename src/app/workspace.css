@@ -263,7 +263,8 @@
 .g-branch-node strong {font-size:13px;font-weight:600;}
 .g-branch-node span {font-size:11px;color:var(--g-muted);}
 .g-branch-node:hover {box-shadow:0 8px 28px rgba(0,0,0,.07);}
-.g-text-action:disabled {opacity:.4;cursor:wait;}
+.g-text-action:disabled {opacity:.4;cursor:not-allowed;}
+.g-card-footer-icon:disabled {opacity:.3;cursor:not-allowed;}
 .g-node-footer {flex-wrap:wrap;gap:10px;}
 
 /* Safe rich assistant content */
