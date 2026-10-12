@@ -2,7 +2,7 @@ import { createChatCard } from './ChatCard.mjs';
 import { quoteAnchor } from '../core/branch.mjs';
 import { createStartCard } from './StartCard.mjs';
 import { createDialogueCard } from './DialogueCard.mjs';
-import {centerEntryCamera,shouldShowMinimap} from '../core/view-mode.mjs';
+import {centerEntryCamera,shouldShowMinimap,calculateGraphBounds} from '../core/view-mode.mjs';
 import { createMinimap } from './Minimap.mjs';
 import { createInspectionPanel } from './InspectionPanel.mjs';
 import { selectCompareId, comparisonTurns } from '../core/compare.mjs';
@@ -180,7 +180,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
   let autoFit = true, edgesQueued = false, cameraQueued=false, previousRoute = null, initialFocusPending = true;
-  let emptyCameraLocked=true, minimapPoints=[];
+  let emptyCameraLocked=true, minimapPoints=[],minimapBounds=calculateGraphBounds([]);
   const responsiveCardWidth=()=>Math.max(240,Math.min(viewport.clientWidth-24,
     viewport.clientWidth<=430?320:viewport.clientWidth<=760?350:366));
   function centerEntry(){
@@ -192,7 +192,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     renderTransform();
   }
   function refreshMinimapVisibility(){
-    minimap.element.hidden=!shouldShowMinimap(minimapPoints,{
+    minimap.element.hidden=!shouldShowMinimap(minimapBounds,{
       panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
   }
   let stablePositions = new Map();
@@ -216,9 +216,10 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       const before=measuredBounds.get(id);
       if(before?.width===width&&before?.height===height)continue;
       measuredBounds.set(id,{width,height});
+      updateSpatialEntry(id);
       geometryChanged=true;
     }
-    if(geometryChanged){rebuildIndex();updateMinimap();queueEdges();}
+    if(geometryChanged){updateMinimap();queueEdges();}
   }):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   // Camera movement changes no world-space edge geometry. Coalesce all
@@ -247,19 +248,28 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     return positions[turn.id]||stablePositions.get(turn.id)||layoutPoint(index);
   };
 
+  function spatialEntry(id){
+    const i=turnIndexById.get(id);
+    if(i===undefined)return null;
+    const p=point(turns[i],i),size=measuredBounds.get(id);
+    return {id,x:p.x,y:p.y,w:size?.width||responsiveCardWidth(),h:size?.height||600};
+  }
+  function updateSpatialEntry(id){
+    const entry=spatialEntry(id);
+    if(entry)spatialIndex.upsert(entry);
+    else spatialIndex.remove(id);
+  }
   function rebuildIndex(){
-    spatialIndex=buildSpatialIndex(turns.map((turn,i)=>{
-      const p=point(turn,i);
-      const size=measuredBounds.get(turn.id);
-      return {id:turn.id,x:p.x,y:p.y,w:size?.width||400,h:size?.height||600};
-    }));
+    spatialIndex=buildSpatialIndex(turns.map(turn=>spatialEntry(turn.id)).filter(Boolean));
   }
   function syncVisibleCards(){
     const started=performance.now();
     visibleQueued=false;
-    const visible=turns.length<80?turns.map(t=>t.id):spatialIndex.query({
-      panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight
-    });
+    // Even 20 rich responses can be expensive to mount simultaneously.
+    const visible=viewport.clientWidth>0&&viewport.clientHeight>0
+      ?spatialIndex.query({panX,panY,scale,
+        width:viewport.clientWidth,height:viewport.clientHeight})
+      :[];
     const active=new Set(visible);
     let mountedChanged=false;
     for(const [id,card] of cards) {
@@ -419,6 +429,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       w:measuredBounds.get(turn.id)?.width||responsiveCardWidth(),
       h:measuredBounds.get(turn.id)?.height||230}));
     minimapPoints.push(...branchPositions.values());
+    minimapBounds=calculateGraphBounds(minimapPoints);
     minimap.setPoints(minimapPoints);
     minimap.setCamera({panX,panY,scale,width:viewport.clientWidth,height:viewport.clientHeight});
     refreshMinimapVisibility();
@@ -492,8 +503,10 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       const p={x:parseFloat(dragging.element.style.left),y:parseFloat(dragging.element.style.top)};
       onMove(dragging.id,p);
     }
+    const changedId=dragging.kind==='card'?dragging.id:null;
     dragging=null;
-    rebuildIndex();scheduleVisible();
+    if(changedId)updateSpatialEntry(changedId);
+    scheduleVisible();
   };
   viewport.addEventListener('pointerup',end);
   viewport.addEventListener('pointercancel',end);
@@ -557,9 +570,9 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       if(!routeChanged && change?.type==='position'){
         const card=cards.get(change.turnId);
         const p=positions[change.turnId];
-        if(card && p){
-          card.style.left=p.x+'px';card.style.top=p.y+'px';
-          rebuildIndex();updateMinimap();queueEdges();
+        if(p){
+          if(card){card.style.left=p.x+'px';card.style.top=p.y+'px';}
+          updateSpatialEntry(change.turnId);updateMinimap();queueEdges();
         }
         return;
       }
