@@ -11,7 +11,7 @@ import { control } from '../../../components/ui/icons.mjs';
 import { layoutPoint, stabilizeLayout } from '../core/graph.mjs';
 import { buildSpatialIndex } from '../core/spatial-index.mjs';
 
-export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation, onAskQuote, onActivity=()=>{} }) {
+export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend, onFork, onBookmark, onOpenConversation, onAskQuote, onActivity=()=>{}, onSearchChange=()=>{} }) {
   const viewport = document.createElement('section');
   viewport.className = 'g-viewport'; viewport.setAttribute('aria-label','Conversation canvas');
   const stage = document.createElement('div'); stage.className = 'g-world';
@@ -65,13 +65,19 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
   const outlineTitle=document.createElement('strong');outlineTitle.textContent='Conversation outline';
   const outlineClose=control('Close outline','close',()=>toggleOutline());
   outlineHead.append(outlineTitle,outlineClose);
+  const outlineSearch=document.createElement('input');
+  outlineSearch.type='search';
+  outlineSearch.className='g-outline-search';
+  outlineSearch.placeholder='Search conversation…';
+  outlineSearch.setAttribute('aria-label','Search conversation outline');
+  outlineSearch.addEventListener('input',()=>search(outlineSearch.value));
   const outlineItems=document.createElement('div');outlineItems.className='g-outline-items';
   const moreOutline=document.createElement('button');
   moreOutline.type='button';moreOutline.className='g-outline-item';
   moreOutline.textContent='Show more results';
   moreOutline.hidden=true;
   moreOutline.addEventListener('click',()=>{outlineLimit+=60;renderOutline();});
-  outline.append(outlineHead,outlineItems,moreOutline);viewport.append(outline);
+  outline.append(outlineHead,outlineSearch,outlineItems,moreOutline);viewport.append(outline);
   let query='',outlineOpen=false,bookmarks=[],selectedCompare=[],focusedId=null;
   let activeSelection=null;
   function hideSelection(){
@@ -176,6 +182,15 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     outlineOpen=!outlineOpen;
     outline.hidden=!outlineOpen;
     if(outlineOpen)renderOutline();
+  }
+  function search(value){
+    const next=String(value||'').trim().toLowerCase();
+    if(next===query)return;
+    query=next;outlineSearch.value=query;
+    onSearchChange(query);
+    outlineLimit=60;applySearch();
+    if(query)outlineOpen=true;
+    outline.hidden=!outlineOpen;renderOutline();
   }
 
   let scale = 1, panX = 0, panY = 0, positions = {}, turns = [], dragging = null;
@@ -546,7 +561,11 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       firstButton.hidden=turns.length<2;latestButton.hidden=turns.length<2;
       controls.hidden=turns.length===0;
       startCard.element.style.width=responsiveCardWidth()+'px';
-      if(routeChanged){turnById.clear();turnIndexById.clear();searchCache.clear();outlineLimit=60;}
+      if(routeChanged){
+        turnById.clear();turnIndexById.clear();searchCache.clear();outlineLimit=60;
+        query='';outlineSearch.value='';onSearchChange('');
+        outlineOpen=false;outline.hidden=true;
+      }
       if(!routeChanged && change?.type==='patch'){
         const card=cards.get(change.turnId);
         const index=turnIndexById.get(change.turnId);
@@ -615,10 +634,13 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     },
     readFocused(){const id=focusedId||turns[turns.length-1]?.id;if(id)readTurn(id);},
     focusBranches,
-    search(value) {const next=String(value||'').trim().toLowerCase();
-      if(next===query)return;
-      query=next;outlineLimit=60;applySearch();
-      if(query)outlineOpen=true;outline.hidden=!outlineOpen;renderOutline();},
+    search,
+    focusSearch(){
+      if(!outlineOpen)toggleOutline();
+      outlineSearch.focus();
+    },
+    get outlineOpen(){return outlineOpen;},
+    closeOutline(){if(outlineOpen)toggleOutline();},
     toggleOutline
   };
 }
