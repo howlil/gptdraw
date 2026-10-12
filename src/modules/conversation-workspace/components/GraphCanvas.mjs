@@ -218,7 +218,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
       measuredBounds.set(id,{width,height});
       geometryChanged=true;
     }
-    if(geometryChanged){rebuildIndex();queueEdges();}
+    if(geometryChanged){rebuildIndex();updateMinimap();queueEdges();}
   }):null;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
   // Camera movement changes no world-space edge geometry. Coalesce all
@@ -400,6 +400,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         node._shell.body.append(compare);
       }
       node.style.left=x+'px';node.style.top=y+'px';
+      branchPositions.get(entry.id).h=node.offsetHeight||155;
     }
     branchesButton.disabled=entries.length===0;
     branchesButton.hidden=entries.length===0;
@@ -514,7 +515,10 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     for(const position of branchPositions.values())position.w=responsiveCardWidth();
     rebuildIndex();updateMinimap();queueEdges();
     if(!turns.length)centerEntry();
-    else renderTransform();
+    else if(initialFocusPending&&viewport.clientWidth){
+      initialFocusPending=false;emptyCameraLocked=false;
+      requestAnimationFrame(()=>focus(turns[turns.length-1].id));
+    }else renderTransform();
   }):null;
   viewportResize?.observe(viewport);
   return {
@@ -555,7 +559,7 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
         const p=positions[change.turnId];
         if(card && p){
           card.style.left=p.x+'px';card.style.top=p.y+'px';
-          rebuildIndex();queueEdges();
+          rebuildIndex();updateMinimap();queueEdges();
         }
         return;
       }
