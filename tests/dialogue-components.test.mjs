@@ -94,3 +94,23 @@ test('shared composer keeps native draft fallback, is IME safe, and exposes erro
     assert.match(c.status.textContent,/Draft prepared/);
   }finally{if(original===undefined)delete globalThis.document;else globalThis.document=original;}
 });
+
+test('Open Source targets the currently paired assistant message, including after streaming',async()=>{
+  let opened=null;
+  const promise=withDOM(()=>{
+    const original={id:'user:msg-u',userId:'user:msg-u',assistantId:null,
+      prompt:'Draw a chart',answer:'',answerBlocks:[],pending:true};
+    const card=createChatCard(original,{index:0,isLatest:true,
+      onSource:async id=>{opened=id;},onFocus:()=>{},onCompose:()=>{},
+      onSend:async()=>({status:'observed'}),onFork:async()=>{},
+      onRead:()=>{},onCompare:()=>{},onBookmark:async()=>{},onSelection:()=>{}});
+    card._update({...original,assistantId:'assistant:msg-a',
+      hasNativeMedia:true,pending:false},0,true);
+    const body=card.children.find(c=>c.className==='g-card-body');
+    assert.equal(body.children.find(c=>c.className==='g-native-content-notice').hidden,false);
+    const footer=card.children.find(c=>c.className==='g-node-footer');
+    return footer.children[0].events.click();
+  });
+  await promise;
+  assert.equal(opened,'assistant:msg-a');
+});
