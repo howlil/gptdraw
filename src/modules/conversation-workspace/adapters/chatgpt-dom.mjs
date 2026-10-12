@@ -24,11 +24,11 @@ function readSource(node, role) {
 }
 function assistantFromTurn(node,options={}) {
   const own=extractAssistantContent(node,options);
-  if(own.text)return own;
+  if(own.text||own.hasNativeMedia)return own;
   const wrapper=node.closest?.(TURN_SELECTOR) || node.closest?.(GROUP_SELECTOR);
   if(!wrapper || wrapper===node)return own;
   const surrounding=extractAssistantContent(wrapper,options);
-  return surrounding.text?surrounding:own;
+  return surrounding.text||surrounding.hasNativeMedia?surrounding:own;
 }
 function idOf(node, role, ordinal) {
   const inside=node.querySelector?.(ROLE_SELECTOR);
@@ -99,7 +99,8 @@ export function collectMessages(root,options={}) {
     const extracted=role==='assistant'?assistantFromTurn(node,options):null;
     const source=extracted?.source || readSource(node,role);
     result.push({id,role,text:extracted?.text ?? (source.textContent || '').trim(),
-      blocks:extracted?.blocks || [],identity:identity.identity,durableId:identity.durableId,element:node,source});
+      blocks:extracted?.blocks || [],hasNativeMedia:!!extracted?.hasNativeMedia,
+      identity:identity.identity,durableId:identity.durableId,element:node,source});
   }
   if (!result.some(row => row.role === 'user')) {
     // Some renderer variants put both roles under a stable user turn key,
@@ -126,7 +127,8 @@ export function collectMessages(root,options={}) {
         const answer=containerAnswer.text?containerAnswer:extractAssistantContent(source,options);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
-          text:answer.text,blocks:answer.blocks,identity:'candidate',durableId:null,element:source,source:answer.source
+          text:answer.text,blocks:answer.blocks,hasNativeMedia:!!answer.hasNativeMedia,
+          identity:'candidate',durableId:null,element:source,source:answer.source
         });
       }
     }
@@ -218,8 +220,10 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       const previousBlocks=previous.blocks||[];
       const blocksChanged=blocks.length!==previousBlocks.length ||
         blocks.some((block,index)=>block!==previousBlocks[index]);
-      if (text !== previous.text || blocksChanged) {
-        const updated = { ...previous,text,source,blocks };
+      const hasNativeMedia=!!extracted?.hasNativeMedia;
+      if (text !== previous.text || blocksChanged ||
+          hasNativeMedia!==!!previous.hasNativeMedia) {
+        const updated = { ...previous,text,source,blocks,hasNativeMedia };
         nodes.set(id,updated);
         targetIds.set(source,id);
         domPatches++;onPatch(updated);
