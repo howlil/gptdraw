@@ -69,3 +69,17 @@ Before introducing another user-visible feature, complete the Chrome signed-in s
 ## Performance user journey — October 2026
 
 **Now:** open ChatGPT → latest card renders immediately; pan/zoom only moves camera; streaming modifies just dirty response blocks and does not recreate unrelated cards. Older-history scanning yields to user activity and continues later. Search uses cached terms and initially shows up to 60 matching outline rows with Show more. The minimap retains marker identity when positions do not change. These are source-level implementation decisions, not verified live-site FPS improvements.
+
+## Design Thinking outcome — Design V2 (2026-10-13)
+
+**Empathize (observed):** the screenshot had a left-biased Start Card with full graph controls and an empty minimap. The user requires identical card geometry for entry and existing conversations. The accepted interactive HTML prototype illustrates typography/composer/spacing but is not a data source.
+
+**Define:** one visual identity across composing, reading, loading, and confirmed branch metadata. New users need the entry action before graph navigation; existing conversation readers need a focused latest card and truthful source-based answers.
+
+**Chosen idea / graph:** native ChatGPT DOM → real turns → shared DialogueCard shell → responsive spatial graph; only meaningful state-specific controls appear. StartCard and ChatCard both reuse CardComposer, while confirmed branch metadata also reuses DialogueCard rather than a second narrow card style.
+
+**Prototype adaptation:** 366/350/320px responsive width (clamp to host main), 38px compact header, 14px shell radius, 15px body padding, neutral off-white/dark surfaces, right user bubble, left assistant answer, 11px composer radius, 27px send affordance. Variable card heights are intentional.
+
+**Test/acceptance gates:** deterministic card and state tests, genuine native Send/draft handoff, viewport centered empty route, minimap gated by graph overflow, no guessed historical edges or fabricated branch responses, light/dark and resize smoke in signed-in Chrome. Do not claim real-site parity until running docs/CHROME_SMOKE_TEST.md against a real session.
+
+**Excluded demo-only artifacts:** scenario tabs, imaginary answers, fake Back to ChatGPT panel, manual theme toggle, invented model/attachment controls, automatic fake Fork. Beautiful UI is an inspiration for chat/composer/selection behavior; this project still ships lightweight native DOM components with no React runtime.
