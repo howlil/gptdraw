@@ -122,7 +122,8 @@ export function createGraphCanvas({ onSource, onMove, onStart, onCompose, onSend
     }catch(error){
       selectionStatus.hidden=false;
       selectionStatus.textContent=error?.message||'Action unavailable.';
-    }finally{askSelection.disabled=false;forkSelection.disabled=false;}
+    }finally{askSelection.disabled=false;
+      forkSelection.disabled=turnById.get(quote.turnId)?.canFork===false;}
   }
   askSelection.addEventListener('click',()=>performSelection('ask'));
   forkSelection.addEventListener('click',()=>performSelection('fork'));
