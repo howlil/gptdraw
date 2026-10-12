@@ -320,7 +320,7 @@ ol.g-block-list {list-style:decimal;}
  .g-inspect-column {padding:18px 16px;}
 }
 
-.g-branch-node .g-card-body {padding:10px 12px 14px;}
+.g-branch-node .g-card-body {padding:15px;}
 .g-branch-open{display:flex;flex-direction:column;gap:5px;text-align:left;
   padding:5px 7px;width:100%;border:0;background:transparent;color:var(--g-text);}
 .g-branch-open:hover{background:var(--g-panel);border-radius:6px;}
@@ -376,4 +376,33 @@ ol.g-block-list {list-style:decimal;}
   border-radius:8px;background:var(--g-surface);color:var(--g-muted);
   box-shadow:0 3px 12px rgba(0,0,0,.07);font-size:11px;line-height:16px;
   overflow-wrap:anywhere;max-height:100px;overflow:auto;
+}
+
+/* V2 contextual toolbar: one return action; Sync and Diagnostics in overflow. */
+.g-topbar {position:relative;z-index:6;}
+.g-toolbar {min-width:0;}
+.g-toolbar .g-find-input {width:154px;}
+.g-tools-menu {
+  position:absolute;right:16px;top:52px;z-index:12;
+  width:230px;padding:5px;background:var(--g-paper);
+  border:1px solid var(--g-border);border-radius:11px;
+  box-shadow:0 12px 32px rgba(0,0,0,.12);
+}
+.g-tools-menu button {
+  display:flex;align-items:center;gap:9px;width:100%;padding:10px;
+  border:0;border-radius:7px;background:transparent;color:var(--g-text);
+  text-align:left;font-size:12px;
+}
+.g-tools-menu button:hover {background:var(--g-panel);}
+.g-card-branch .g-card-head {cursor:default;}
+.g-card-start .g-card-head,.g-card-loading .g-card-head,.g-card-unavailable .g-card-head {cursor:default;}
+@media(max-width:760px) {
+  .g-toolbar .g-find-input {width:105px;}
+}
+@media(max-width:570px) {
+  .g-toolbar .g-find-input {display:none;}
+  .g-brand {gap:7px;}
+  .g-brand strong {font-size:13px;}
+  .g-topbar {padding-left:10px;padding-right:10px;}
+  .g-toolbar {gap:2px;}
 }
