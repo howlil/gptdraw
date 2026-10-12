@@ -16,7 +16,8 @@ export function pairMessages(messages) {
         current.assistantId = message.id;
         current.answer = message.text;
         current.answerBlocks = message.blocks || [];
-        current.pending = !message.text.trim();
+        current.hasNativeMedia = !!message.hasNativeMedia;
+        current.pending = !message.text.trim()&&!current.hasNativeMedia;
       } else {
         // Orphan assistant output is not assigned a fabricated question.
         current = null;

@@ -1,6 +1,8 @@
 // Rendered ChatGPT DOM -> typed, inert data. No copy of source innerHTML.
 // Never trust URLs, markup events, scripts or ChatGPT's hidden model state.
 const BLOCK_SELECTOR='h1,h2,h3,h4,p,pre,blockquote,ul,ol,table,hr';
+// This is an indicator, not a serializer for native ChatGPT visual widgets.
+const NATIVE_VISUAL_SELECTOR='img:not([aria-hidden="true"]),video,audio,canvas,iframe,[data-testid*="chart"],[data-testid*="artifact"]';
 const TEXT_KINDS={H1:'heading',H2:'heading',H3:'heading',H4:'heading',P:'paragraph',
   PRE:'code',UL:'list',OL:'list',BLOCKQUOTE:'quote',TABLE:'table',HR:'divider'};
 const textOf=node=>String(node?.innerText ?? node?.textContent ?? '').trim().slice(0,120000);
@@ -105,5 +107,6 @@ export function extractAssistantContent(node,options={}) {
     }
   }
   const text=blocks.map(b=>b.text).filter(Boolean).join('\n\n');
-  return {text,blocks,source:sources[0]||node};
+  const hasNativeMedia=sources.some(source=>!!source?.querySelector?.(NATIVE_VISUAL_SELECTOR));
+  return {text,blocks,source:sources[0]||node,hasNativeMedia};
 }

@@ -176,6 +176,11 @@
 .g-block-quote {border-left:2px solid var(--g-border);padding-left:10px;color:var(--g-muted);}
 .g-block-divider {border:0;border-top:1px solid var(--g-border);}
 .g-placeholder {font-size:11px;line-height:17px;margin:8px 0 0;}
+.g-native-content-notice {
+  margin:8px 0 10px;padding:3px 0 3px 10px;
+  border-left:2px solid var(--g-border);color:var(--g-muted);
+  font-size:12px;line-height:18px;
+}
 .g-node-footer {display:flex;align-items:center;gap:13px;padding:2px 14px 9px;min-height:29px;}
 .g-text-action {display:inline-flex;align-items:center;gap:5px;padding:3px 0;
   border:0;background:transparent;color:var(--g-muted);font-size:11px!important;}
