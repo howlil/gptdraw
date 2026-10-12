@@ -1,4 +1,4 @@
-import { conversationId } from './branch.mjs';
+import { conversationId,stableMessageId } from './branch.mjs';
 
 // Connected, verified branch family. A disconnected conversation must never
 // appear in the same workspace. Content is intentionally not part of this map.
@@ -7,7 +7,8 @@ export function buildBranchWorkspace(records,route) {
   if(!current)return {current:null,root:null,nodes:[],edges:[]};
   const byChild=new Map(),children=new Map();
   for(const record of records||[]) {
-    if(record?.status!=='confirmed'||!record.parentConversationId||!record.childConversationId)continue;
+    if(record?.status!=='confirmed'||!record.parentConversationId||!record.childConversationId||
+       !stableMessageId(record.source?.messageId))continue;
     if(record.parentConversationId===record.childConversationId)continue;
     if(byChild.has(record.childConversationId))continue;
     byChild.set(record.childConversationId,record);
