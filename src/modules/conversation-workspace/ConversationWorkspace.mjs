@@ -1,4 +1,5 @@
 import { createGraphCanvas } from './components/GraphCanvas.mjs';
+import { deriveWorkspaceMode } from './core/view-mode.mjs';
 import { control, icon } from '../../components/ui/icons.mjs';
 import { createDiagnosticsPanel } from './components/DiagnosticsPanel.mjs';
 
@@ -21,14 +22,28 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   const historyLabel=document.createElement('span');historyLabel.className='g-history-status';
   historyLabel.setAttribute('role','status');historyLabel.setAttribute('aria-live','polite');
   const diagnostics=createDiagnosticsPanel(()=>Promise.resolve({...onDiagnostics(),...canvas.stats()}));
-  tools.append(search,control('Show conversation outline','list',()=>canvas.toggleOutline()),
-    control('Compatibility diagnostics','list',()=>diagnostics.open()),
-    historyLabel,count,control('Load earlier messages / Sync','refresh',onRefresh));
+  const outlineButton=control('Show conversation outline','list',()=>canvas.toggleOutline());
+  const menu=document.createElement('div');
+  menu.className='g-tools-menu';
+  menu.hidden=true;
+  const syncButton=document.createElement('button');
+  syncButton.type='button';syncButton.append(icon('refresh',15),document.createTextNode(' Sync earlier messages'));
+  syncButton.addEventListener('click',()=>{menu.hidden=true;onRefresh();});
+  const diagnosticButton=document.createElement('button');
+  diagnosticButton.type='button';
+  diagnosticButton.append(icon('focus',15),document.createTextNode(' Compatibility diagnostics'));
+  diagnosticButton.addEventListener('click',()=>{menu.hidden=true;diagnostics.open();});
+  menu.append(syncButton,diagnosticButton);
+  const moreButton=control('More workspace tools','more',()=>{
+    menu.hidden=!menu.hidden;
+    moreButton.setAttribute('aria-expanded',String(!menu.hidden));
+  });
+  moreButton.setAttribute('aria-expanded','false');
   const compose=document.createElement('button');compose.type='button';
-  compose.className='g-primary-control';compose.append(icon('message',15));
-  compose.append(document.createTextNode(' Back to ChatGPT'));
-  compose.addEventListener('click',onClose); tools.append(compose,control('Close canvas','close',onClose));
-  header.append(branding,tools);wrapper.append(header);
+  compose.className='g-primary-control';compose.textContent='Back to ChatGPT';
+  compose.addEventListener('click',onClose);
+  tools.append(search,outlineButton,historyLabel,count,moreButton,compose);
+  header.append(branding,tools,menu);wrapper.append(header);
   const branchNotice=document.createElement('div');branchNotice.className='g-branch-notice';branchNotice.hidden=true;
   branchNotice.setAttribute('role','status');
   const noticeText=document.createElement('span');noticeText.className='g-branch-message';
@@ -46,6 +61,10 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   wrapper.append(footer);
   wrapper.addEventListener('keydown',event=>{
     if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey)return;
+    if(event.key==='Escape'&&!menu.hidden){
+      event.stopPropagation();event.preventDefault();
+      menu.hidden=true;moreButton.setAttribute('aria-expanded','false');return;
+    }
     if(event.key==='Escape'&&canvas.selectionOpen()){
       event.stopPropagation();event.preventDefault();canvas.hideSelection();return;
     }
@@ -55,7 +74,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
     const element=event.target;
     if(element?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
     const key=event.key.toLowerCase();
-    if(key==='/'){event.preventDefault();search.focus();search.select();return;}
+    if(key==='/'&&!search.hidden){event.preventDefault();search.focus();search.select();return;}
     if(key==='j'||key==='k'){event.preventDefault();canvas.nextTurn(key==='j'?1:-1);}
     if(key==='r'){event.preventDefault();canvas.readFocused();}
     if(key==='b'){event.preventDefault();canvas.focusBranches();}
@@ -64,7 +83,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
   return {
     element:wrapper,
     show(){wrapper.hidden=false;},
-    hide(){canvas.hideSelection();wrapper.hidden=true;},
+    hide(){canvas.hideSelection();menu.hidden=true;wrapper.hidden=true;},
     render(state, change){
       const status=state.history?.status || 'idle';
       const labels={
@@ -79,6 +98,13 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
         historyLabel.textContent='Scanning history · '+Math.floor(state.history.count/2)+' turns';
       if(state.history?.unresolved>0)historyLabel.textContent+=' · '+state.history.unresolved+' unlinked history pages';
       historyLabel.hidden=!historyLabel.textContent;
+      const mode=deriveWorkspaceMode(state);
+      const populated=!['new','loading','unavailable'].includes(mode);
+      search.hidden=state.turns.length<2;
+      outlineButton.hidden=state.turns.length<2;
+      count.hidden=!populated;
+      if(!populated && search.value){search.value='';canvas.search('');}
+      menu.hidden=true;moreButton.setAttribute('aria-expanded','false');
       const pending=state.pendingBranch;
       const current=state.route?.startsWith('conversation:')?state.route.slice(13):null;
       const canConfirm=!!pending&&!!current&&pending.parentConversationId!==current;
@@ -88,7 +114,7 @@ export function createConversationWorkspace({ onClose, onSource, onCompose, onRe
         : pending?'Fork requested. Finish creating the new chat in ChatGPT.':'';
       confirm.hidden=!canConfirm;
       branchError.textContent=state.branchError || '';
-      if(change?.type==='history')return;
+      if(change?.type==='history' && populated)return;
       if(change?.type!=='patch' && change?.type!=='position')
         count.textContent=state.turns.length+' '+(state.turns.length===1?'turn':'turns')+' loaded';
       canvas.reconcile(state,change);
