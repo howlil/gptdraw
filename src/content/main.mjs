@@ -54,9 +54,9 @@ if (!document.getElementById(HOST_ID)) {
     onClose:hide,
     onSource:async id=>{
       controller.pauseHistory();
-      let element=controller.getSource(id);
-      if(!element?.isConnected)element=await revealNativeSource(document,id);
-      if(!element)throw new Error('Source not currently available in the rendered ChatGPT history.');
+      // Graph IDs may be session-only aliases; never seek them as native IDs.
+      const element=await controller.resolveSource(id);
+      if(!element)throw new Error('Exact native source unavailable. This turn may have a temporary identity or be unloaded.');
       focusNative(element);
     },
     onCompose:()=>{
