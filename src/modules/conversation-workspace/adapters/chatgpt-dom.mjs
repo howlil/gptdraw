@@ -219,7 +219,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       identityCounts,
       discoveryStatus:rows.length?'ready':rootValid?'unsupported-layout':
         mainMarkers?'root-mismatch':
-        /(?:^|\\/)c\\/[a-zA-Z0-9_-]+/.test(pathname)?'awaiting-hydration':'empty-chat'
+        pathname.startsWith('/c/')?'awaiting-hydration':'empty-chat'
     };
     nodes = new Map(rows.map(row => [row.id,row]));
     targetIds = new WeakMap();
