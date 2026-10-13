@@ -1,6 +1,7 @@
 // Progressive, cancellable reading of *native* ChatGPT scrolling history.
 // No undocumented API calls. Never scroll navigation sidebar.
-const TURN_MARKER='[data-testid^="conversation-turn-"],[data-turn-id],[data-turn-key],[data-message-author-role]';
+import { MESSAGE_MARKER } from './chatgpt-layouts.mjs';
+const TURN_MARKER=MESSAGE_MARKER;
 const SCROLL_SELECTORS='[data-testid="conversation-scroll-container"],[data-testid="conversation-panel"],[class*="overflow-y-auto"],[class*="overflow-auto"],[role="log"]';
 function scrollable(node, view) {
   if(!node || typeof node.scrollTop!=='number')return false;
@@ -79,7 +80,19 @@ export async function backfillHistory({
 }) {
   const scroller=findScroller(document,root);
   if(!scroller){onStatus({status:'unavailable',steps:0});return 'unavailable';}
-  const bottomGap=Math.max(0,scroller.scrollHeight-scroller.clientHeight-scroller.scrollTop);
+  // Reversed flex transcripts can have negative scrollTop (newest at zero).
+  // Detect the native layout rather than treating zero as universally oldest.
+  const styleOf=el=>el && document?.defaultView?.getComputedStyle?.(el);
+  const transcript=scroller.querySelector?.('[data-conversation-transcript]');
+  const reversed=[scroller,scroller.firstElementChild,transcript]
+    .some(el=>styleOf(el)?.flexDirection==='column-reverse');
+  const originalOffset=scroller.scrollTop;
+  const bottomGap=reversed ? -originalOffset :
+    Math.max(0,scroller.scrollHeight-scroller.clientHeight-originalOffset);
+  const oldestOffset=()=>reversed?
+    -Math.max(0,scroller.scrollHeight-scroller.clientHeight):0;
+  const newestOffset=()=>reversed?0:
+    Math.max(0,scroller.scrollHeight-scroller.clientHeight);
   let outcome='limited',steps=0,lastCount=-1,lastHeight=-1,lastHead=null,stable=0;
   let count=0;
   const abort=()=>signal?.aborted||scroller.isConnected===false;
@@ -96,13 +109,13 @@ export async function backfillHistory({
       }
       const before=scroller.scrollTop;
       const step=Math.max(220,Math.min(scroller.clientHeight*.82,900));
-      scroller.scrollTop=Math.max(0,before-step);
+      scroller.scrollTop=Math.max(oldestOffset(),before-step);
       await wait(waitMs);
       if(!(await yieldForScan()) || abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
       const current=await onScan({direction:'up',moved:scroller.scrollTop<before-1,scrollTop:scroller.scrollTop});
       count=Math.max(count,current?.count||0);
       const head=current?.firstId||null,height=scroller.scrollHeight;
-      const atTop=scroller.scrollTop<=2;
+      const atTop=scroller.scrollTop<=oldestOffset()+2;
       const unchanged=atTop && lastHead===head && lastHeight===height && lastCount===count;
       stable=unchanged?stable+1:0;
       lastHead=head;lastHeight=height;lastCount=count;
@@ -122,14 +135,14 @@ export async function backfillHistory({
         if(!(await yieldForScan()) || abort()){
           outcome=signal?.aborted?'cancelled':'unavailable';break;
         }
-        const max=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
+        const max=newestOffset();
         const before=scroller.scrollTop;
         scroller.scrollTop=Math.min(max,before+Math.max(220,Math.min(scroller.clientHeight*.82,900)));
         await wait(waitMs);
         if(!(await yieldForScan()) || abort()){outcome=signal?.aborted?'cancelled':'unavailable';break;}
         const info=await onScan({direction:'down',moved:scroller.scrollTop>before+1,scrollTop:scroller.scrollTop});
         count=Math.max(count,info?.count||0);
-        const end=scroller.scrollTop>=Math.max(0,scroller.scrollHeight-scroller.clientHeight-2);
+        const end=scroller.scrollTop>=newestOffset()-2;
         stable=end?stable+1:0;
         if(steps%4===0)onStatus({status:'loading',phase:'down',steps:steps+1,count});
         if(stable>=3){outcome='reached-top';steps++;break;}
@@ -141,6 +154,8 @@ export async function backfillHistory({
     return outcome;
   } finally {
     if(!signal?.aborted && scroller.isConnected!==false)
-      scroller.scrollTop=Math.max(0,scroller.scrollHeight-scroller.clientHeight-bottomGap);
+      scroller.scrollTop=reversed?
+        Math.max(oldestOffset(),Math.min(0,-bottomGap)):
+        Math.max(0,scroller.scrollHeight-scroller.clientHeight-bottomGap);
   }
 }

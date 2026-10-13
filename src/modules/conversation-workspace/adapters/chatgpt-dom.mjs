@@ -1,23 +1,15 @@
 import { backfillHistory, yieldForHistory } from './history.mjs';
 import { extractAssistantContent } from './response-content.mjs';
 import { stableMessageId } from '../core/message-identity.mjs';
+import { TURN_SELECTOR, ROLE_SELECTOR, GROUP_SELECTOR, UNIT_SELECTOR,
+  TRANSCRIPT_SELECTOR, MESSAGE_MARKER, normalizedRole, roleOf,
+  detectLayout, canonicalCandidates } from './chatgpt-layouts.mjs';
 
 // Read only rendered ChatGPT message DOM. Never reach into React state,
 // cookies, hidden endpoints or model context. Site markup varies by cohort.
-const TURN_SELECTOR = '[data-testid^="conversation-turn-"],[data-turn-id][data-turn]';
-const ROLE_SELECTOR = '[data-message-author-role],[data-conversation-role]';
-const GROUP_SELECTOR = '[data-turn-key]';
 const RESPONSE_CONTENT = '.markdown,.prose,[data-testid="assistant-message"]';
 const USER_CONTENT = '[data-testid="user-message"],[data-user-message-bubble],.user-message-bubble-color,.whitespace-pre-wrap';
 
-const normalizedRole = value => value === 'user' || value === 'assistant' ? value : null;
-function roleOf(node) {
-  return normalizedRole(node.getAttribute?.('data-turn'))
-    || normalizedRole(node.getAttribute?.('data-message-author-role'))
-    || normalizedRole(node.getAttribute?.('data-conversation-role'))
-    || normalizedRole(node.querySelector?.(ROLE_SELECTOR)?.getAttribute?.('data-message-author-role'))
-    || normalizedRole(node.querySelector?.(ROLE_SELECTOR)?.getAttribute?.('data-conversation-role'));
-}
 function readSource(node, role) {
   const selector = role === 'user' ? USER_CONTENT : RESPONSE_CONTENT;
   return node.querySelector?.(selector) || node.querySelector?.(ROLE_SELECTOR) || node;
@@ -41,6 +33,10 @@ function idOf(node, role, ordinal) {
   }
   // data-turn-id and data-turn-key can identify a rendered grouping but are
   // not proof of a durable native message identifier.
+  const unitKey=node.getAttribute?.('data-content-search-unit-key');
+  if(unitKey)return {id:role+':unit-key:'+unitKey,identity:'candidate',durableId:null};
+  const transcriptId=node.matches?.(TRANSCRIPT_SELECTOR) && node.getAttribute?.('id');
+  if(transcriptId)return {id:role+':transcript:'+transcriptId,identity:'candidate',durableId:null};
   const turnId=node.getAttribute?.('data-turn-id');
   if(turnId)return {id:role+':'+turnId,identity:'candidate',durableId:null};
   const turnKey=node.getAttribute?.('data-turn-key')||
@@ -54,14 +50,44 @@ function idOf(node, role, ordinal) {
 export function findChatMain(doc) {
   const mains = [...(doc.querySelectorAll?.('main,[role="main"]') || [])];
   if (!mains.length) return doc.querySelector?.('main') || doc.querySelector?.('[role="main"]') || doc.body;
-  // Prefer the primary conversation surface, not sidebars or popovers.
-  return mains.find(el => el.querySelector?.(TURN_SELECTOR) || el.querySelector?.(ROLE_SELECTOR) || el.querySelector?.(GROUP_SELECTOR))
-    || mains.find(el => el.querySelector?.('#prompt-textarea,[data-testid="composer-text-input"]'))
-    || mains[0];
+  // The composer alone does not prove that a root owns the transcript.
+  const score = el => {
+    if(el.querySelector?.(TRANSCRIPT_SELECTOR)) return 8;
+    if(el.querySelector?.(UNIT_SELECTOR)) return 7;
+    if(el.querySelector?.(TURN_SELECTOR)) return 6;
+    if(el.querySelector?.(ROLE_SELECTOR)) return 5;
+    if(el.querySelector?.(GROUP_SELECTOR)) return 4;
+    if(el.querySelector?.('#prompt-textarea,[data-testid="composer-text-input"]')) return 1;
+    return 0;
+  };
+  const ranked=mains.map((el,index)=>({el,index,rank:score(el)}))
+    .sort((a,b)=>b.rank-a.rank || a.index-b.index);
+  return ranked[0]?.rank ? ranked[0].el : mains[0];
+}
+
+function collectCanonical(candidates,options={}) {
+  const rows=[],seen=new Set();
+  for (const node of candidates) {
+    const role=roleOf(node);
+    if(!role)continue;
+    const provenance=idOf(node,role,rows.length);
+    if(seen.has(provenance.id))continue;
+    seen.add(provenance.id);
+    // These canonical units already represent one role; never climb to a
+    // shared group containing both the prompt and assistant response.
+    const extracted=role==='assistant'?extractAssistantContent(node,options):null;
+    const source=extracted?.source || readSource(node,role);
+    rows.push({id:provenance.id,role,text:extracted?.text ?? (source.textContent||'').trim(),
+      blocks:extracted?.blocks||[],hasNativeMedia:!!extracted?.hasNativeMedia,
+      identity:provenance.identity,durableId:provenance.durableId,element:node,source});
+  }
+  return rows;
 }
 
 export function collectMessages(root,options={}) {
   if (!root?.querySelectorAll) return [];
+  const canonical=canonicalCandidates(root);
+  if(canonical.candidates) return collectCanonical(canonical.candidates,options);
   const wrappers = [...root.querySelectorAll(TURN_SELECTOR)];
   const candidates = [];
   if (wrappers.length) {
@@ -123,8 +149,12 @@ export function collectMessages(root,options={}) {
         // output: that would duplicate the user's prompt as a fake answer.
         if (source === group || source.contains?.(user)) source = marker;
         // Group wrappers can keep rendered Markdown outside the role marker.
-        const containerAnswer=extractAssistantContent(group,options);
-        const answer=containerAnswer.text?containerAnswer:extractAssistantContent(source,options);
+        // Do not serialize the whole keyed group: it includes the user prompt.
+        const answerContent=[...(group.querySelectorAll?.(RESPONSE_CONTENT)||[])]
+          .find(el => el!==user && !el.contains?.(user) && !user.contains?.(el));
+        if(answerContent)source=answerContent;
+        if(source===group || source.contains?.(user))continue;
+        const answer=extractAssistantContent(source,options);
         grouped.push({
           id:'assistant:turn-key:'+key,role:'assistant',
           text:answer.text,blocks:answer.blocks,hasNativeMedia:!!answer.hasNativeMedia,
@@ -148,6 +178,9 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
   let backfillAbort = null, historyStarted = false;
   let domScans=0,domPatches=0,userActivityUntil=0;
   let scanLastMs=0,scanMaxMs=0,patchLastMs=0,patchMaxMs=0;
+  let discovery={layout:'unknown',rootValid:false,discoveredCandidates:0,
+    acceptedMessages:0,rejectedCandidates:0,userMessages:0,assistantMessages:0,
+    identityCounts:{stable:0,candidate:0,ephemeral:0},discoveryStatus:'awaiting-hydration'};
   const cancelBackfill = () => {backfillAbort?.abort();backfillAbort = null;};
   function startBackfill() {
     if (!mounted || historyStarted || backfillAbort || !onHistory ||
@@ -173,6 +206,21 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     domScans++;
     blockCache=new WeakMap();
     const rows = collectMessages(root,{cache:blockCache});
+    const markerCount=root?.querySelectorAll?.(MESSAGE_MARKER)?.length||0;
+    const rootValid=markerCount>0 || rows.length>0;
+    const mainMarkers=!!document.querySelector?.(MESSAGE_MARKER);
+    const identityCounts={stable:0,candidate:0,ephemeral:0};
+    for(const row of rows)identityCounts[row.identity]=(identityCounts[row.identity]||0)+1;
+    discovery={
+      layout:detectLayout(root),rootValid,discoveredCandidates:markerCount,
+      acceptedMessages:rows.length,rejectedCandidates:Math.max(0,markerCount-rows.length),
+      userMessages:rows.filter(row=>row.role==='user').length,
+      assistantMessages:rows.filter(row=>row.role==='assistant').length,
+      identityCounts,
+      discoveryStatus:rows.length?'ready':rootValid?'unsupported-layout':
+        mainMarkers?'root-mismatch':
+        pathname.startsWith('/c/')?'awaiting-hydration':'empty-chat'
+    };
     nodes = new Map(rows.map(row => [row.id,row]));
     targetIds = new WeakMap();
     for (const row of rows) {
@@ -234,22 +282,27 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     pending.clear();
   };
   const queue = () => { if (!queued) { queued = true; schedule(flush); } };
+  const structuralAttrs=new Set([
+    'data-turn','data-turn-id','data-turn-key','data-message-id',
+    'data-message-author-role','data-conversation-role','data-message-role',
+    'data-content-search-unit-key','data-testid','id'
+  ]);
   const onMutations = mutations => {
     for (const mutation of mutations) {
-      if (mutation.type === 'characterData') {
-        const id = turnFor(mutation.target);
-        if (id){
+      const id=turnFor(mutation.target);
+      if(mutation.type==='attributes' && structuralAttrs.has(mutation.attributeName)){
+        rescan=true;
+      } else if(mutation.type==='characterData' || mutation.type==='attributes'){
+        if(id){
           if(!pending.has(id))pending.set(id,new Set());
           pending.get(id).add(mutation.target);
-        } else rescan = true;
-      } else {
-        const id = turnFor(mutation.target);
-        const structural = [...mutation.addedNodes,...mutation.removedNodes].some(node =>
-          node.nodeType === 1 && (
-            node.matches?.(TURN_SELECTOR) || node.matches?.(ROLE_SELECTOR) || node.matches?.(GROUP_SELECTOR)
-            || node.querySelector?.(TURN_SELECTOR) || node.querySelector?.(ROLE_SELECTOR) || node.querySelector?.(GROUP_SELECTOR)
-          ));
-        if (structural || !id) rescan = true;
+        } else rescan=true;
+      } else if(mutation.type==='childList'){
+        const structural=[...mutation.addedNodes,...mutation.removedNodes].some(node =>
+          node.nodeType===1 && (node.matches?.(MESSAGE_MARKER) ||
+            node.querySelector?.(MESSAGE_MARKER))
+        );
+        if(structural || !id)rescan=true;
         else {
           if(!pending.has(id))pending.set(id,new Set());
           pending.get(id).add(mutation.target);
@@ -264,7 +317,7 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     if (!root) return;
     observer = new MutationObserver(onMutations);
     observer.observe(root,{subtree:true,childList:true,characterData:true,
-      attributes:true,attributeFilter:['href']});
+      attributes:true,attributeFilter:['href',...structuralAttrs]});
   }
   function connect() {
     if(!mounted)return;
@@ -313,7 +366,11 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     markInteraction(){userActivityUntil=Date.now()+850;},
     getElement(id) { return nodes.get(id)?.element || null; },
     getDiagnostics(){
-      return {domScans,domPatches,rootPresent:!!root,
+      const {identityCounts,...discoveryFields}=discovery;
+      return {domScans,domPatches,rootPresent:!!root,...discoveryFields,
+        identityStable:identityCounts.stable,
+        identityCandidate:identityCounts.candidate,
+        identityEphemeral:identityCounts.ephemeral,
         liveDOMMessages:nodes.size,historyActive:!!backfillAbort,
         scanLastMs,scanMaxMs,patchLastMs,patchMaxMs,
         idSource:nodes.size && [...nodes.keys()].some(id=>id.includes('visible:'))?'mixed':'native-or-candidate'};
@@ -323,6 +380,8 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
       document.defaultView?.removeEventListener('popstate',nav);
       root = null;observer = null;bodyObserver = null;queued = false;connectQueued=false;
       nodes.clear();pending.clear();targetIds = new WeakMap();blockCache=new WeakMap();rescan = true;
+      discovery={...discovery,acceptedMessages:0,userMessages:0,assistantMessages:0,
+        rootValid:false,discoveryStatus:'awaiting-hydration'};
     }
   };
 }

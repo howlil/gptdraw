@@ -1,6 +1,6 @@
 // Graph identity and native provenance are different claims.
 // Only an explicit native message identifier can authorize durable actions.
-const TRANSIENT=/^(?:user|assistant):(?:observed:|visible:|conversation-turn-\d+|turn-key:|data-turn-key:)/;
+const TRANSIENT=/^(?:user|assistant):(?:observed:|visible:|conversation-turn-\d+|turn-key:|data-turn-key:|unit-key:|transcript:)/;
 export function stableMessageId(id) {
   return typeof id==='string' && id.length>0 && id.length<200 &&
     !TRANSIENT.test(id) && !/\s/.test(id);
