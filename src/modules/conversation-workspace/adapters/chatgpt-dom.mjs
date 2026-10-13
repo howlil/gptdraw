@@ -366,7 +366,11 @@ export function createChatGPTObserver({ document, onSnapshot, onPatch, onRoute, 
     markInteraction(){userActivityUntil=Date.now()+850;},
     getElement(id) { return nodes.get(id)?.element || null; },
     getDiagnostics(){
-      return {domScans,domPatches,rootPresent:!!root,...discovery,
+      const {identityCounts,...discoveryFields}=discovery;
+      return {domScans,domPatches,rootPresent:!!root,...discoveryFields,
+        identityStable:identityCounts.stable,
+        identityCandidate:identityCounts.candidate,
+        identityEphemeral:identityCounts.ephemeral,
         liveDOMMessages:nodes.size,historyActive:!!backfillAbort,
         scanLastMs,scanMaxMs,patchLastMs,patchMaxMs,
         idSource:nodes.size && [...nodes.keys()].some(id=>id.includes('visible:'))?'mixed':'native-or-candidate'};
